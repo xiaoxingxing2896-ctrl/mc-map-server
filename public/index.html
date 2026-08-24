@@ -106,7 +106,23 @@ textarea{resize:vertical;min-height:60px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
-@media(max-width:768px){.sidebar{width:260px;top:58px}.marker-panel{width:calc(100vw - 32px);right:16px;left:16px}.auth-panel{width:90vw}.coord-display{bottom:16px;right:16px;font-size:12px}}
+.menu-btn{display:none;margin-right:8px}
+.side-backdrop{position:absolute;inset:60px 0 0 0;background:rgba(0,0,0,0.45);z-index:1002;display:none}
+@media(max-width:768px){
+  .menu-btn{display:flex}
+  .top-bar{padding:0 10px}
+  .logo{font-size:15px}
+  .coord-jump{display:none}
+  .user-section{gap:6px}
+  .user-section .btn{padding:4px 8px;font-size:12px}
+  .sidebar{width:280px;top:60px;left:0;border-radius:0 12px 12px 0;height:calc(100vh - 60px)}
+  .sidebar.collapsed{transform:translateX(-100%)}
+  .side-backdrop.show{display:block}
+  .marker-panel{width:calc(100vw - 24px);right:12px;left:12px}
+  .auth-panel{width:92vw}
+  .coord-display{bottom:12px;right:12px;font-size:12px}
+  .leaflet-control-zoom{margin-bottom:56px!important}
+}
 .coord-jump{display:flex;align-items:center;gap:6px;margin-right:12px}
 .coord-jump input{width:80px;padding:4px 8px;font-size:12px;text-align:center}
 </style>
@@ -115,6 +131,7 @@ textarea{resize:vertical;min-height:60px}
 <div id="map"></div>
 <div class="ui-layer">
   <div class="top-bar">
+    <button class="btn-icon menu-btn" id="menuBtn" onclick="toggleSidebar()" title="标注列表">☰</button>
     <div class="logo">🗺️ MC Server Map</div>
     <div style="display:flex;align-items:center;">
       <div class="coord-jump">
@@ -145,6 +162,7 @@ textarea{resize:vertical;min-height:60px}
   <div class="panel auth-panel hidden" id="userPanel"></div>
   <div class="panel auth-panel hidden" id="settingsPanel"></div>
   <div class="coord-display" id="coordDisplay">X: 0, Z: 0</div>
+  <div class="side-backdrop" id="sideBackdrop" onclick="closeSidebar()"></div>
 </div>
 <script src="/vendor/leaflet.js" onerror="loadLeafletJsFallback()"></script>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
@@ -292,7 +310,18 @@ function initUI(){
     s.appendChild(o);
   });
 }
-function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('collapsed'); }
+function toggleSidebar(){
+  const s = document.getElementById('sidebar');
+  s.classList.toggle('collapsed');
+  const b = document.getElementById('sideBackdrop');
+  if (b) b.classList.toggle('show', !s.classList.contains('collapsed') && window.innerWidth < 768);
+}
+function closeSidebar(){
+  const s = document.getElementById('sidebar');
+  if (s) s.classList.add('collapsed');
+  const b = document.getElementById('sideBackdrop');
+  if (b) b.classList.remove('show');
+}
 function closePanels(){ document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden')); tempLatLng = null; selectedMarker = null; }
 
 async function checkAuth(){
@@ -938,6 +967,8 @@ function startApp(){
   initMap();
   initUI();
   getServerTime();
+  // 移动端：默认收起侧栏（汉堡打开），避免遮挡地图
+  if (window.innerWidth < 768) { const s = document.getElementById('sidebar'); if (s) s.classList.add('collapsed'); }
   checkAuth().then(() => Promise.all([loadTileIndex(), loadMarkers()]));
 }
 ensureStart();
