@@ -171,6 +171,7 @@ let map, markersLayer, markersData = [], currentUser = null, selectedMarker = nu
     const TURNSTILE_SITE_KEY = '0x4AAAAAAEaCtMNdUOErOfPT';
 let authBusy = false;
 let authMode = 'login';
+let clockOffset = 0; // 服务器时间 - 本地时间 的偏移，用于校准
 
 function escapeHtml(t){if(!t)return'';const d=document.createElement('div');d.textContent=t;return d.innerHTML}
 function showToast(msg,type='success'){const e=document.querySelector('.toast');if(e)e.remove();const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(-10px)';setTimeout(()=>t.remove(),300)},2800)}
@@ -214,30 +215,47 @@ function initMap(){
 
 let tileIndex = [];
 const activeOverlays = new Map(); // key: "x,z" -> L.imageOverlay
+const inFlight = new Set();
+let pendingTiles = [];
+const MAX_TILE_CONCURRENT = 3; // 同时最多加载 3 张：带宽不足时平滑加载，避免几十张 1024 大图同时拉导致大片空白
 
 function tileKey(t){ return t.x + ',' + t.z; }
 
-// 只加载视野内（含 30% 预加载区）的瓦片，视野外移除 —— 地图结构与坐标映射不变
+// 只加载视野内（含 30% 预加载区）的瓦片；用并发队列限制同时加载数
 function updateVisibleTiles(){
   if (!map || tileIndex.length === 0) return;
   const view = map.getBounds().pad(0.3);
   const wanted = new Set();
+  pendingTiles = [];
   tileIndex.forEach(t => {
     const bounds = L.latLngBounds([t.z, t.x], [t.z + CONFIG.tileSize, t.x + CONFIG.tileSize]);
     if (view.intersects(bounds)) {
       const key = tileKey(t);
       wanted.add(key);
-      if (!activeOverlays.has(key)) {
-        activeOverlays.set(key, L.imageOverlay(t.url, bounds, { opacity: 1 }).addTo(map));
-      }
+      if (!activeOverlays.has(key) && !inFlight.has(key)) pendingTiles.push(key);
     }
   });
   activeOverlays.forEach((ov, key) => {
-    if (!wanted.has(key)) {
-      map.removeLayer(ov);
-      activeOverlays.delete(key);
-    }
+    if (!wanted.has(key)) { map.removeLayer(ov); activeOverlays.delete(key); }
   });
+  pumpTiles();
+}
+
+// 并发加载器：同一时刻最多 MAX_TILE_CONCURRENT 张在加载，其它排队；加载完自动继续
+function pumpTiles(){
+  while (pendingTiles.length && inFlight.size < MAX_TILE_CONCURRENT) {
+    const key = pendingTiles.shift();
+    if (inFlight.has(key) || activeOverlays.has(key)) continue;
+    const t = tileIndex.find(x => tileKey(x) === key);
+    if (!t) continue;
+    const bounds = L.latLngBounds([t.z, t.x], [t.z + CONFIG.tileSize, t.x + CONFIG.tileSize]);
+    inFlight.add(key);
+    const ov = L.imageOverlay(t.url, bounds, { opacity: 1 });
+    ov.once('load', () => { inFlight.delete(key); pumpTiles(); });
+    ov.once('error', () => { inFlight.delete(key); if (activeOverlays.has(key)) { map.removeLayer(ov); activeOverlays.delete(key); } pumpTiles(); });
+    ov.addTo(map);
+    activeOverlays.set(key, ov);
+  }
 }
 
 async function loadTileIndex(){
@@ -574,18 +592,18 @@ async function sendEmailCode(purpose){
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
     showToast(d.message || '验证码已发送', 'success');
-    startCodeCooldown();
+    startCodeCooldown(d.retryAfter || 300);
   } catch (e) { showToast(e.message, 'error'); }
   finally { authBusy = false; }
 }
 
-// 获取验证码后 60 秒内禁止再次获取，过后可重新获取
-function startCodeCooldown(){
-  let n = 60;
+// 获取验证码后一段时间内禁止再次获取，过后可重新获取（时长由后端 retryAfter 决定，默认 300 秒）
+function startCodeCooldown(secs){
+  let n = secs || 300;
   function update(disabled, label) {
     document.querySelectorAll('#authPanel button[onclick*="sendEmailCode"]').forEach(b => { b.disabled = disabled; b.textContent = label; });
   }
-  update(true, '60秒后重试');
+  update(true, n + '秒后重试');
   const iv = setInterval(() => {
     n--;
     if (n <= 0) { update(false, '获取验证码'); clearInterval(iv); }
@@ -877,11 +895,22 @@ async function saveUserInfo(){
     showToast('账号信息修改成功', 'success');
 }
 
+// 用服务器时间校准本地时钟（读响应头 X-Server-Time），消除前后端时钟偏差
+function serverNow(){ return Date.now() + clockOffset; }
+async function getServerTime(){
+  try {
+    const r = await fetch('/api/health');
+    const t = r.headers.get('x-server-time');
+    if (t) clockOffset = Number(t) - Date.now();
+  } catch (e) { /* 忽略 */ }
+}
+
 function startApp(){
   if (window.__appStarted) return;
   window.__appStarted = true;
   initMap();
   initUI();
+  getServerTime();
   checkAuth().then(() => Promise.all([loadTileIndex(), loadMarkers()]));
 }
 ensureStart();

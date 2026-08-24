@@ -134,6 +134,9 @@ export async function updateAccount(req, ctx) {
 }
 
 // ---------- 邮箱验证码认证（Resend） ----------
+// 验证码获取冷却：同一邮箱同一用途，5 分钟内禁止再次获取
+const CODE_COOLDOWN_MS = 5 * 60 * 1000;
+
 export async function emailCode(req, ctx) {
   const body = await req.json().catch(() => ({}));
   const email = body && body.email;
@@ -148,10 +151,21 @@ export async function emailCode(req, ctx) {
     if (!user) return json({ error: '该邮箱未注册，请先注册' }, 404);
     if (user.email_verified === 1) return json({ error: '该邮箱已通过验证' }, 400);
   }
+  // 后端冷却：5 分钟内禁止再次获取
+  try {
+    const last = await ctx.db.get("SELECT created_at FROM verification_codes WHERE email = ? AND purpose = ? ORDER BY id DESC LIMIT 1", [emailNorm, purpose]);
+    if (last && last.created_at) {
+      const dt = Date.parse(String(last.created_at).replace(' ', 'T') + 'Z');
+      if (!isNaN(dt) && Date.now() - dt < CODE_COOLDOWN_MS) {
+        const wait = Math.ceil((CODE_COOLDOWN_MS - (Date.now() - dt)) / 1000);
+        return json({ error: '验证码获取过于频繁，请 5 分钟后再试', retryAfter: wait }, 429);
+      }
+    }
+  } catch (e) { /* 冷却查询异常不阻断发码 */ }
   try {
     const code = await issueCode(ctx.db, emailNorm, purpose);
     await sendEmail(ctx.mail, { to: emailNorm, subject: '【MC Map】验证码', html: codeEmailHtml(code, purpose) });
-    return json({ message: '验证码已发送到邮箱，10 分钟内有效' });
+    return json({ message: '验证码已发送到邮箱，10 分钟内有效', retryAfter: Math.ceil(CODE_COOLDOWN_MS / 1000) });
   } catch (e) {
     return json({ error: e.message }, 500);
   }
@@ -357,6 +371,6 @@ export async function serveTile(req, ctx) {
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Server-Time': String(Date.now()) },
   });
 }
