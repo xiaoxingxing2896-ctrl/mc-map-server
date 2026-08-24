@@ -6,7 +6,10 @@
 // 两者接口完全一致，路由代码不感知后端差异。
 
 // ---------- D1 实现 ----------
-// 修复：无占位符参数的 SQL 不应调用 .bind()，否则 D1 会抛错
+// 关键修复：
+//  1) 无占位符参数的 SQL 不应调用 .bind()，否则 D1 会抛错
+//  2) D1 的 PreparedStatement 没有 .get()（那是 sqlite3 的 API）！
+//     取单行必须用 .first()，否则查询 users/markers 时抛"not a function"
 export function createDbFromD1(envDB) {
     const prep = (sql, params) => {
         const stmt = envDB.prepare(sql);
@@ -18,8 +21,9 @@ export function createDbFromD1(envDB) {
             return res.results || [];
         },
         async get(sql, params = []) {
-            const res = await prep(sql, params).get();
-            return res && res.results ? res.results[0] : null;
+            // D1 用 .first() 获取第一行（返回行对象或 null）
+            const row = await prep(sql, params).first();
+            return row || null;
         },
         async run(sql, params = []) {
             const res = await prep(sql, params).run();
