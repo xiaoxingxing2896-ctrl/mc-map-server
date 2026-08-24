@@ -391,7 +391,7 @@ function openAuthPanel(mode){
     body = `
       <div class="form-group"><label>邮箱</label><input type="text" id="authEmail" placeholder="your@example.com"></div>
       <div class="form-group"><label>密码</label><input type="password" id="authPass" placeholder="输入密码"></div>
-      <div class="cf-turnstile" id="cf-turnstile" style="margin:8px 0"></div>
+      <div class="cf-turnstile" id="cf-turnstile" style="display:none"></div>
       <div class="form-actions">
         <button class="btn btn-sm" onclick="closePanels()">取消</button>
         <button class="btn btn-sm btn-primary" onclick="handleAuth('login')">登录</button>
@@ -406,7 +406,7 @@ function openAuthPanel(mode){
       <div class="form-group"><label>用户名</label><input type="text" id="authUser" placeholder="输入用户名"></div>
       <div class="form-group"><label>密码</label><input type="password" id="authPass" placeholder="至少4位"></div>
       <div class="form-group"><label>邮箱（必填）</label><input type="text" id="authEmail" placeholder="your@example.com"></div>
-      <div class="cf-turnstile" id="cf-turnstile" style="margin:8px 0"></div>
+      <div class="cf-turnstile" id="cf-turnstile" style="display:none"></div>
       <div class="form-actions">
         <button class="btn btn-sm" onclick="closePanels()">取消</button>
         <button class="btn btn-sm btn-primary" onclick="handleAuth('register')">注册</button>
@@ -424,7 +424,7 @@ function openAuthPanel(mode){
           <button class="btn btn-sm" style="white-space:nowrap" onclick="sendEmailCode('register')">获取验证码</button>
         </div>
       </div>
-      <div class="cf-turnstile" id="cf-turnstile" style="margin:8px 0"></div>
+      <div class="cf-turnstile" id="cf-turnstile" style="display:none"></div>
       <div class="form-actions">
         <button class="btn btn-sm" onclick="closePanels()">取消</button>
         <button class="btn btn-sm btn-primary" onclick="handleVerifyEmail()">验证邮箱</button>
@@ -440,7 +440,7 @@ function openAuthPanel(mode){
         </div>
       </div>
       <div class="form-group"><label>新密码</label><input type="password" id="authNewPass" placeholder="至少4位"></div>
-      <div class="cf-turnstile" id="cf-turnstile" style="margin:8px 0"></div>
+      <div class="cf-turnstile" id="cf-turnstile" style="display:none"></div>
       <div class="form-actions">
         <button class="btn btn-sm" onclick="closePanels()">取消</button>
         <button class="btn btn-sm btn-primary" onclick="handleReset()">重置密码</button>
@@ -451,9 +451,8 @@ function openAuthPanel(mode){
     p.innerHTML = authHeader('🔑 忘记密码', body);
   }
   p.classList.remove('hidden');
-  if (TURNSTILE_SITE_KEY && window.turnstile && document.getElementById('cf-turnstile')) {
-    window.turnstile.render(document.getElementById('cf-turnstile'), { sitekey: TURNSTILE_SITE_KEY });
-  }
+  maybeShowTurnstile();
+  if (!p.dataset.bound) { p.dataset.bound = '1'; p.addEventListener('input', maybeShowTurnstile); }
 }
 
 function applyLogin(d){
@@ -462,6 +461,24 @@ function applyLogin(d){
   localStorage.setItem('mcmap_role', d.role);
   currentUser = {token: d.token, username: d.username, role: d.role};
   updateUserUI();
+}
+
+function isStrongPassword(p){ return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(p || ''); }
+
+// 填完当前面板所有输入框后再显示并渲染 Turnstile
+function maybeShowTurnstile(){
+  if (!TURNSTILE_SITE_KEY) return;
+  const el = document.getElementById('cf-turnstile');
+  if (!el) return;
+  const inputs = document.querySelectorAll('#authPanel input');
+  let filled = inputs.length > 0;
+  inputs.forEach(i => { if (!i.value || !i.value.trim()) filled = false; });
+  if (filled && window.turnstile) {
+    el.style.display = 'block';
+    if (!el.getAttribute('data-rendered')) { window.turnstile.render(el, { sitekey: TURNSTILE_SITE_KEY }); el.setAttribute('data-rendered', '1'); }
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 function getTurnstileToken(){
@@ -494,12 +511,16 @@ async function handleAuth(mode){
       const emEl = document.getElementById('authEmail');
       const em = emEl ? emEl.value.trim() : '';
       if (!u || !pw || !em) return showToast('请填写完整信息（邮箱必填）', 'error');
+      if (!isStrongPassword(pw)) return showToast('密码需8位以上，且含大小写字母和数字', 'error');
       const r = await fetch('/api/auth/register', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({username: u, password: pw, email: em, turnstile: ts.token})
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
+      if (!r.ok) {
+        if (d && d.needVerify) { lastRegEmail = em; showToast(d.error || '该邮箱未验证，请先验证', 'error'); openAuthPanel('verify'); return; }
+        throw new Error(d.error);
+      }
       lastRegEmail = em;
       showToast('注册成功，请验证邮箱', 'success');
       openAuthPanel('verify');
@@ -556,6 +577,7 @@ async function handleReset(){
     const code = document.getElementById('authCode').value.trim();
     const np = document.getElementById('authNewPass') ? document.getElementById('authNewPass').value : '';
     if (!email || !code || !np) return showToast('请填写完整信息', 'error');
+    if (!isStrongPassword(np)) return showToast('密码需8位以上，且含大小写字母和数字', 'error');
     const r = await fetch('/api/auth/reset', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({email, code, newPassword: np})

@@ -27,6 +27,11 @@ async function checkTurnstile(req, ctx, body) {
   return null;
 }
 
+// 密码强度：8 位以上，且同时含大小写字母与数字
+function isStrongPassword(p) {
+  return typeof p === 'string' && /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(p);
+}
+
 // 认证：返回 { user } 或抛 { status, msg }
 export async function authenticateReq(req, ctx) {
   const auth = req.headers.get('authorization') || '';
@@ -52,16 +57,25 @@ export async function register(req, ctx) {
   const username = body && body.username;
   const password = body && body.password;
   const email = body && body.email;
-  if (!isValidUsername(username) || typeof password !== 'string' || password.length < 4) {
-    return json({ error: '用户名或密码无效（用户名3-32位，密码至少4位）' }, 400);
+  if (!isValidUsername(username)) {
+    return json({ error: '用户名无效（3-32位）' }, 400);
+  }
+  if (!isStrongPassword(password)) {
+    return json({ error: '密码需8位以上，且同时含大写字母、小写字母和数字' }, 400);
   }
   // 邮箱必填（必须邮箱注册后登录）
   if (!isValidEmail(email)) return json({ error: '必须使用有效的邮箱注册' }, 400);
   const emailNorm = email.trim().toLowerCase();
   const hash = await hashPassword(password);
   try {
-    const dupe = await ctx.db.get("SELECT id FROM users WHERE email = ?", [emailNorm]);
-    if (dupe) return json({ error: '该邮箱已被注册' }, 400);
+    const dupe = await ctx.db.get("SELECT id, email_verified FROM users WHERE email = ?", [emailNorm]);
+    if (dupe) {
+      if (dupe.email_verified !== 1) {
+        // 已注册但尚未验证：引导用户去完成验证，而不是卡在"已注册"
+        return json({ error: '该邮箱尚未验证，请前往完成邮箱验证', needVerify: true }, 400);
+      }
+      return json({ error: '该邮箱已被注册' }, 400);
+    }
     // 无任何用户时，第一个注册者成为管理员(owner)
     const cnt = await ctx.db.get("SELECT COUNT(*) AS c FROM users");
     const role = (cnt && cnt.c === 0) ? 'owner' : 'user';
@@ -99,8 +113,8 @@ export async function updateAccount(req, ctx) {
   const oldPassword = body && body.oldPassword;
   const newUsername = body && body.newUsername;
   const newPassword = body && body.newPassword;
-  if (typeof oldPassword !== 'string' || !isValidUsername(newUsername) || typeof newPassword !== 'string' || newPassword.length < 4) {
-    return json({ error: '旧密码、新用户名或新密码无效' }, 400);
+  if (typeof oldPassword !== 'string' || !isValidUsername(newUsername) || !isStrongPassword(newPassword)) {
+    return json({ error: '旧密码、新用户名或新密码无效（新密码需8位以上且含大小写字母和数字）' }, 400);
   }
   const row = await ctx.db.get("SELECT * FROM users WHERE id = ?", [user.id]);
   if (!row) return json({ error: '用户不存在' }, 401);
@@ -181,8 +195,8 @@ export async function resetPassword(req, ctx) {
   const email = body && body.email;
   const code = body && body.code;
   const newPassword = body && body.newPassword;
-  if (!isValidEmail(email) || !code || typeof newPassword !== 'string' || newPassword.length < 4) {
-    return json({ error: '邮箱、验证码或新密码无效（新密码至少4位）' }, 400);
+  if (!isValidEmail(email) || !code || !isStrongPassword(newPassword)) {
+    return json({ error: '邮箱、验证码或新密码无效（新密码需8位以上且含大小写字母和数字）' }, 400);
   }
   const emailNorm = email.trim().toLowerCase();
   const ok = await verifyCode(ctx.db, emailNorm, 'reset', code);
