@@ -2,6 +2,7 @@
 // 所有 handler 签名：async (req, ctx) => Response
 import { verifyJwt, signJwt } from './jwt.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { isValidEmail, sendEmail, issueCode, verifyCode, codeEmailHtml } from './email.js';
 
 function isInt(v) {
   return v !== '' && v !== null && v !== undefined && Number.isInteger(Number(v));
@@ -40,12 +41,25 @@ export async function register(req, ctx) {
   const body = await req.json().catch(() => ({}));
   const username = body && body.username;
   const password = body && body.password;
+  const email = body && body.email;
   if (!isValidUsername(username) || typeof password !== 'string' || password.length < 4) {
     return json({ error: '用户名或密码无效（用户名3-32位，密码至少4位）' }, 400);
   }
+  // 邮箱可选：注册时带邮箱则会登记邮箱（未验证），后续可发送验证
+  const useEmail = email !== undefined && email !== null && String(email).trim() !== '';
+  if (useEmail && !isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
   const hash = await hashPassword(password);
   try {
-    const res = await ctx.db.run("INSERT INTO users (username, password_hash) VALUES (?, ?)", [username.trim(), hash]);
+    let res;
+    if (useEmail) {
+      const emailNorm = String(email).trim().toLowerCase();
+      const dupe = await ctx.db.get("SELECT id FROM users WHERE email = ?", [emailNorm]);
+      if (dupe) return json({ error: '该邮箱已被注册' }, 400);
+      res = await ctx.db.run("INSERT INTO users (username, password_hash, email, email_verified) VALUES (?, ?, ?, ?)",
+        [username.trim(), hash, emailNorm, 0]);
+    } else {
+      res = await ctx.db.run("INSERT INTO users (username, password_hash) VALUES (?, ?)", [username.trim(), hash]);
+    }
     return json({ message: '注册成功', userId: res.lastRowId });
   } catch (e) {
     return json({ error: '用户名已存在' }, 400);
@@ -90,6 +104,95 @@ export async function updateAccount(req, ctx) {
   }
   const token = await signJwt({ id: user.id, username: newUsername.trim(), role: user.role }, ctx.jwtSecret, ctx.jwtExpiresIn);
   return json({ message: '信息已更新', token, username: newUsername.trim() });
+}
+
+// ---------- 邮箱验证码认证（Resend） ----------
+export async function emailCode(req, ctx) {
+  const body = await req.json().catch(() => ({}));
+  const email = body && body.email;
+  const purpose = (body && body.purpose) || 'login';
+  if (!isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
+  if (!['login', 'register', 'reset'].includes(purpose)) return json({ error: '无效的操作类型' }, 400);
+  const emailNorm = email.trim().toLowerCase();
+  const user = await ctx.db.get("SELECT * FROM users WHERE email = ?", [emailNorm]);
+  if ((purpose === 'login' || purpose === 'reset') && !user) {
+    return json({ error: '该邮箱未注册' }, 404);
+  }
+  if (purpose === 'register') {
+    // 注册验证：允许"已注册但未验证"的邮箱补发验证码
+    if (!user) return json({ error: '该邮箱未注册，请先注册' }, 404);
+    if (user.email_verified === 1) return json({ error: '该邮箱已通过验证' }, 400);
+  }
+  try {
+    const code = await issueCode(ctx.db, emailNorm, purpose);
+    await sendEmail(ctx.mail, { to: emailNorm, subject: '【MC Map】验证码', html: codeEmailHtml(code, purpose) });
+    return json({ message: '验证码已发送到邮箱，10 分钟内有效' });
+  } catch (e) {
+    return json({ error: e.message }, 500);
+  }
+}
+
+export async function emailLogin(req, ctx) {
+  const body = await req.json().catch(() => ({}));
+  const email = body && body.email;
+  const code = body && body.code;
+  if (!isValidEmail(email) || !code) return json({ error: '邮箱或验证码无效' }, 400);
+  const emailNorm = email.trim().toLowerCase();
+  const ok = await verifyCode(ctx.db, emailNorm, 'login', code);
+  if (!ok) return json({ error: '验证码错误或已过期' }, 400);
+  const user = await ctx.db.get("SELECT * FROM users WHERE email = ?", [emailNorm]);
+  if (!user) return json({ error: '该邮箱未注册' }, 404);
+  await ctx.db.run("UPDATE users SET email_verified = 1 WHERE id = ?", [user.id]);
+  const token = await signJwt({ id: user.id, username: user.username, role: user.role }, ctx.jwtSecret, ctx.jwtExpiresIn);
+  return json({ token, username: user.username, role: user.role });
+}
+
+export async function verifyEmail(req, ctx) {
+  const body = await req.json().catch(() => ({}));
+  const email = body && body.email;
+  const code = body && body.code;
+  if (!isValidEmail(email) || !code) return json({ error: '邮箱或验证码无效' }, 400);
+  const emailNorm = email.trim().toLowerCase();
+  const ok = await verifyCode(ctx.db, emailNorm, 'register', code);
+  if (!ok) return json({ error: '验证码错误或已过期' }, 400);
+  const user = await ctx.db.get("SELECT * FROM users WHERE email = ?", [emailNorm]);
+  if (!user) return json({ error: '该邮箱未注册' }, 404);
+  await ctx.db.run("UPDATE users SET email_verified = 1 WHERE id = ?", [user.id]);
+  return json({ message: '邮箱验证成功' });
+}
+
+export async function forgot(req, ctx) {
+  const body = await req.json().catch(() => ({}));
+  const email = body && body.email;
+  if (!isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
+  const emailNorm = email.trim().toLowerCase();
+  const user = await ctx.db.get("SELECT * FROM users WHERE email = ?", [emailNorm]);
+  if (!user) return json({ error: '该邮箱未注册' }, 404);
+  try {
+    const code = await issueCode(ctx.db, emailNorm, 'reset');
+    await sendEmail(ctx.mail, { to: emailNorm, subject: '【MC Map】重置密码', html: codeEmailHtml(code, 'reset') });
+    return json({ message: '重置验证码已发送到邮箱' });
+  } catch (e) {
+    return json({ error: e.message }, 500);
+  }
+}
+
+export async function resetPassword(req, ctx) {
+  const body = await req.json().catch(() => ({}));
+  const email = body && body.email;
+  const code = body && body.code;
+  const newPassword = body && body.newPassword;
+  if (!isValidEmail(email) || !code || typeof newPassword !== 'string' || newPassword.length < 4) {
+    return json({ error: '邮箱、验证码或新密码无效（新密码至少4位）' }, 400);
+  }
+  const emailNorm = email.trim().toLowerCase();
+  const ok = await verifyCode(ctx.db, emailNorm, 'reset', code);
+  if (!ok) return json({ error: '验证码错误或已过期' }, 400);
+  const user = await ctx.db.get("SELECT * FROM users WHERE email = ?", [emailNorm]);
+  if (!user) return json({ error: '该邮箱未注册' }, 404);
+  const newHash = await hashPassword(newPassword);
+  await ctx.db.run("UPDATE users SET password_hash = ? WHERE id = ?", [newHash, user.id]);
+  return json({ message: '密码已重置，请用新密码登录' });
 }
 
 export async function me(req, ctx) {

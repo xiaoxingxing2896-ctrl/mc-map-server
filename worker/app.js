@@ -58,12 +58,14 @@ function withParams(req, params) {
 }
 
 async function initDatabase(db, adminPassword) {
-  // 表结构与原版一致（D1 一条语句一次执行）
+  // 用户表（新库直接含邮箱列）
   await db.run(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT DEFAULT 'user',
+      email TEXT,
+      email_verified INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
   await db.run(`CREATE TABLE IF NOT EXISTS markers (
@@ -78,6 +80,18 @@ async function initDatabase(db, adminPassword) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       is_public INTEGER DEFAULT 1
   )`);
+  // 邮箱验证码表
+  await db.run(`CREATE TABLE IF NOT EXISTS verification_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      code TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      expires_at INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  // 兼容已存在的旧 users 表：补充邮箱列（列已存在则忽略）
+  try { await db.run("ALTER TABLE users ADD COLUMN email TEXT"); } catch {}
+  try { await db.run("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0"); } catch {}
   const owner = await db.get("SELECT * FROM users WHERE role = 'owner'");
   if (owner) return;
   const admin = await db.get("SELECT * FROM users WHERE role = 'admin'");
@@ -103,6 +117,7 @@ export function createApp(deps) {
     bucket: deps.bucket,
     jwtSecret: deps.jwtSecret,
     jwtExpiresIn: deps.jwtExpiresIn || 604800,
+    mail: deps.mail || { apiKey: '', from: '' },
   };
   const globalLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 300 });
   const authLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
@@ -155,6 +170,11 @@ async function dispatch(request, method, path, ctx) {
   }
   if (path === '/api/auth/register' && method === 'POST') return R.register(request, ctx);
   if (path === '/api/auth/login' && method === 'POST') return R.login(request, ctx);
+  if (path === '/api/auth/email/code' && method === 'POST') return R.emailCode(request, ctx);
+  if (path === '/api/auth/email/login' && method === 'POST') return R.emailLogin(request, ctx);
+  if (path === '/api/auth/verify-email' && method === 'POST') return R.verifyEmail(request, ctx);
+  if (path === '/api/auth/forgot' && method === 'POST') return R.forgot(request, ctx);
+  if (path === '/api/auth/reset' && method === 'POST') return R.resetPassword(request, ctx);
   if (path === '/api/auth/update' && method === 'PUT') return R.updateAccount(request, ctx);
   if (path === '/api/me' && method === 'GET') return R.me(request, ctx);
   if (path === '/api/users' && method === 'GET') return R.listUsers(request, ctx);
