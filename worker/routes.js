@@ -52,8 +52,6 @@ export async function optionalAuthReq(req, ctx) {
 // ---------- 认证 ----------
 export async function register(req, ctx) {
   const body = await req.json().catch(() => ({}));
-  const t = await checkTurnstile(req, ctx, body);
-  if (t) return t;
   const username = body && body.username;
   const password = body && body.password;
   const email = body && body.email;
@@ -71,11 +69,14 @@ export async function register(req, ctx) {
     const dupe = await ctx.db.get("SELECT id, email_verified FROM users WHERE email = ?", [emailNorm]);
     if (dupe) {
       if (dupe.email_verified !== 1) {
-        // 已注册但尚未验证：引导用户去完成验证，而不是卡在"已注册"
+        // 已注册但尚未验证：引导用户去完成验证，而不是卡在"已注册"（不再要求人机验证）
         return json({ error: '该邮箱尚未验证，请前往完成邮箱验证', needVerify: true }, 400);
       }
       return json({ error: '该邮箱已被注册' }, 400);
     }
+    // 仅"真正新注册"才要求人机验证（重复注册/引导验证分支已在上方返回）
+    const tk = await checkTurnstile(req, ctx, body);
+    if (tk) return tk;
     // 无任何用户时，第一个注册者成为管理员(owner)
     const cnt = await ctx.db.get("SELECT COUNT(*) AS c FROM users");
     const role = (cnt && cnt.c === 0) ? 'owner' : 'user';
@@ -135,8 +136,6 @@ export async function updateAccount(req, ctx) {
 // ---------- 邮箱验证码认证（Resend） ----------
 export async function emailCode(req, ctx) {
   const body = await req.json().catch(() => ({}));
-  const t = await checkTurnstile(req, ctx, body);
-  if (t) return t;
   const email = body && body.email;
   const purpose = (body && body.purpose) || 'register';
   if (!isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
