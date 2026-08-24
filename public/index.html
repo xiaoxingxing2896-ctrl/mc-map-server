@@ -399,8 +399,19 @@ function authHeader(title, body) {
   return `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h3>${title}</h3>
-      <button class="btn-icon" onclick="closePanels()">✕</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-icon" title="清空并重置" onclick="clearAuth()">↺</button>
+        <button class="btn-icon" onclick="closePanels()">✕</button>
+      </div>
     </div>${body}`;
+}
+
+// 清空当前面板输入 + 重置人机验证，避免邮箱停留在验证中
+function clearAuth(){
+  document.querySelectorAll('#authPanel input').forEach(i => { if (i.type !== 'checkbox') i.value = ''; });
+  const el = document.getElementById('cf-turnstile');
+  if (el && window.turnstile) { try { window.turnstile.reset(el); } catch (e) {} el.style.display = 'none'; el.removeAttribute('data-rendered'); }
+  showToast('已清空，请重新填写', 'success');
 }
 
 function openAuthPanel(mode){
@@ -516,18 +527,18 @@ async function handleAuth(mode){
     const em = document.getElementById('authEmail').value.trim();
     const pw = document.getElementById('authPass').value;
     if (!em || !pw) return showToast('请填写邮箱和密码', 'error');
-    // 人机验证改为：点击登录后才触发（Turnstile 不再随输入提前出现）
+    // 人机验证：点击登录后先出现验证框；验证通过后**需要再次点击登录**才真正提交
     if (TURNSTILE_SITE_KEY) {
       const tst = window.turnstile;
       const el = document.getElementById('cf-turnstile');
       const cur = tst ? tst.getResponse() : '';
-      if (!cur && tst && el) {
+      if (el && !cur) {
         el.style.display = 'block';
         if (!el.getAttribute('data-rendered')) {
           el.setAttribute('data-rendered', '1');
-          tst.render(el, { sitekey: TURNSTILE_SITE_KEY, callback: () => submitLogin(em, pw) });
+          tst.render(el, { sitekey: TURNSTILE_SITE_KEY }); // 只渲染，不自动提交
         }
-        return showToast('请先完成人机验证', 'info');
+        return showToast('请完成人机验证后，再次点击“登录”', 'info');
       }
     }
     return submitLogin(em, pw);
