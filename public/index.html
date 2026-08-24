@@ -521,7 +521,9 @@ function maybeShowTurnstile(){
 
 function getTurnstileToken(){
   if (!TURNSTILE_SITE_KEY) return { ok: true, token: '' };
-  const tok = window.turnstile ? window.turnstile.getResponse() : '';
+  let tok = '';
+  // widget 可能尚未渲染或已被清理，getResponse 会抛错，需容错
+  try { tok = window.turnstile ? window.turnstile.getResponse() : ''; } catch (e) { tok = ''; }
   if (!tok) return { ok: false, token: '' };
   return { ok: true, token: tok };
 }
