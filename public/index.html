@@ -406,15 +406,21 @@ function authHeader(title, body) {
     </div>${body}`;
 }
 
+// 清理当前 Turnstile widget（避免重建面板后"Could not find widget"）
+function cleanupTurnstile(){
+  const el = document.getElementById('cf-turnstile');
+  if (el && window.turnstile) { try { window.turnstile.remove(el); } catch (e) {} el.style.display = 'none'; el.removeAttribute('data-rendered'); }
+}
+
 // 清空当前面板输入 + 重置人机验证，避免邮箱停留在验证中
 function clearAuth(){
   document.querySelectorAll('#authPanel input').forEach(i => { if (i.type !== 'checkbox') i.value = ''; });
-  const el = document.getElementById('cf-turnstile');
-  if (el && window.turnstile) { try { window.turnstile.reset(el); } catch (e) {} el.style.display = 'none'; el.removeAttribute('data-rendered'); }
+  cleanupTurnstile();
   showToast('已清空，请重新填写', 'success');
 }
 
 function openAuthPanel(mode){
+  cleanupTurnstile(); // 重建面板前清理旧 widget
   authMode = mode;
   const p = document.getElementById('authPanel');
   let body = '';
