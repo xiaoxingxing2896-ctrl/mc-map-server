@@ -168,7 +168,7 @@ const MCCRS = L.extend({}, L.CRS.Simple, {
 
 let map, markersLayer, markersData = [], currentUser = null, selectedMarker = null, tempLatLng = null, lastRegEmail = '';
 // 在 Cloudflare 创建 Turnstile 后填入 Site Key（公开值）；留空则跳过人机验证
-const TURNSTILE_SITE_KEY = '';
+    const TURNSTILE_SITE_KEY = '0x4AAAAAAEaCtMNdUOErOfPT';
 let authBusy = false;
 
 function escapeHtml(t){if(!t)return'';const d=document.createElement('div');d.textContent=t;return d.innerHTML}
