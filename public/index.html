@@ -170,6 +170,7 @@ let map, markersLayer, markersData = [], currentUser = null, selectedMarker = nu
 // 在 Cloudflare 创建 Turnstile 后填入 Site Key（公开值）；留空则跳过人机验证
     const TURNSTILE_SITE_KEY = '0x4AAAAAAEaCtMNdUOErOfPT';
 let authBusy = false;
+let authMode = 'login';
 
 function escapeHtml(t){if(!t)return'';const d=document.createElement('div');d.textContent=t;return d.innerHTML}
 function showToast(msg,type='success'){const e=document.querySelector('.toast');if(e)e.remove();const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(-10px)';setTimeout(()=>t.remove(),300)},2800)}
@@ -385,6 +386,7 @@ function authHeader(title, body) {
 }
 
 function openAuthPanel(mode){
+  authMode = mode;
   const p = document.getElementById('authPanel');
   let body = '';
   if (mode === 'login') {
@@ -468,6 +470,7 @@ function isStrongPassword(p){ return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.tes
 // 填完当前面板所有输入框后再显示并渲染 Turnstile
 function maybeShowTurnstile(){
   if (!TURNSTILE_SITE_KEY) return;
+  if (authMode === 'login') return; // 登录的人机验证改为点击登录后才触发
   const el = document.getElementById('cf-turnstile');
   if (!el) return;
   const inputs = document.querySelectorAll('#authPanel input');
@@ -489,43 +492,70 @@ function getTurnstileToken(){
 }
 
 async function handleAuth(mode){
-  // 登录需人机验证；注册仅在"真正新注册"时由后端校验（重复注册/引导验证不再要求）
+  if (authBusy) return showToast('正在处理，请稍候', 'error');
   const ts = getTurnstileToken();
-  if (mode === 'login' && !ts.ok) return showToast('请先完成人机验证', 'error');
+  if (mode === 'login') {
+    const em = document.getElementById('authEmail').value.trim();
+    const pw = document.getElementById('authPass').value;
+    if (!em || !pw) return showToast('请填写邮箱和密码', 'error');
+    // 人机验证改为：点击登录后才触发（Turnstile 不再随输入提前出现）
+    if (TURNSTILE_SITE_KEY) {
+      const tst = window.turnstile;
+      const el = document.getElementById('cf-turnstile');
+      const cur = tst ? tst.getResponse() : '';
+      if (!cur && tst && el) {
+        el.style.display = 'block';
+        if (!el.getAttribute('data-rendered')) {
+          el.setAttribute('data-rendered', '1');
+          tst.render(el, { sitekey: TURNSTILE_SITE_KEY, callback: () => submitLogin(em, pw) });
+        }
+        return showToast('请先完成人机验证', 'info');
+      }
+    }
+    return submitLogin(em, pw);
+  } else if (mode === 'register') {
+    const u = document.getElementById('authUser').value.trim();
+    const pw = document.getElementById('authPass').value;
+    const emEl = document.getElementById('authEmail');
+    const em = emEl ? emEl.value.trim() : '';
+    if (!u || !pw || !em) return showToast('请填写完整信息（邮箱必填）', 'error');
+    if (!isStrongPassword(pw)) return showToast('密码需8位以上，且含大小写字母和数字', 'error');
+    return submitRegister(u, pw, em, ts.token);
+  }
+}
+
+async function submitLogin(em, pw){
   if (authBusy) return showToast('正在处理，请稍候', 'error');
   authBusy = true;
   try {
-    if (mode === 'login') {
-      const em = document.getElementById('authEmail').value.trim();
-      const pw = document.getElementById('authPass').value;
-      if (!em || !pw) return showToast('请填写邮箱和密码', 'error');
-      const r = await fetch('/api/auth/login', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({email: em, password: pw, turnstile: ts.token})
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      applyLogin(d); showToast('登录成功', 'success'); closePanels();
-    } else if (mode === 'register') {
-      const u = document.getElementById('authUser').value.trim();
-      const pw = document.getElementById('authPass').value;
-      const emEl = document.getElementById('authEmail');
-      const em = emEl ? emEl.value.trim() : '';
-      if (!u || !pw || !em) return showToast('请填写完整信息（邮箱必填）', 'error');
-      if (!isStrongPassword(pw)) return showToast('密码需8位以上，且含大小写字母和数字', 'error');
-      const r = await fetch('/api/auth/register', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: u, password: pw, email: em, turnstile: ts.token})
-      });
-      const d = await r.json();
-      if (!r.ok) {
-        if (d && d.needVerify) { lastRegEmail = em; showToast(d.error || '该邮箱未验证，请先验证', 'error'); openAuthPanel('verify'); return; }
-        throw new Error(d.error);
-      }
-      lastRegEmail = em;
-      showToast('注册成功，请验证邮箱', 'success');
-      openAuthPanel('verify');
+    const tok = window.turnstile ? window.turnstile.getResponse() : '';
+    const r = await fetch('/api/auth/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email: em, password: pw, turnstile: tok})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    applyLogin(d); showToast('登录成功', 'success'); closePanels();
+  } catch (e) { showToast(e.message, 'error'); }
+  finally { authBusy = false; }
+}
+
+async function submitRegister(u, pw, em, token){
+  if (authBusy) return showToast('正在处理，请稍候', 'error');
+  authBusy = true;
+  try {
+    const r = await fetch('/api/auth/register', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: pw, email: em, turnstile: token})
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      if (d && d.needVerify) { lastRegEmail = em; showToast(d.error || '该邮箱未验证，请先验证', 'error'); openAuthPanel('verify'); return; }
+      throw new Error(d.error);
     }
+    lastRegEmail = em;
+    showToast('注册成功，请验证邮箱', 'success');
+    openAuthPanel('verify');
   } catch (e) { showToast(e.message, 'error'); }
   finally { authBusy = false; }
 }
