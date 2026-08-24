@@ -1,0 +1,11 @@
+node_modules/
+.env
+backups/
+data/
+*.log
+.DS_Store
+.wrangler/
+# 数据库含用户密码哈希，不提交；部署时用 scripts/cf-init 导入
+mcmap.db
+migrate.sql
+worker/_worker-test.db

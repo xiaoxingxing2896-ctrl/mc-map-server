@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MC Server Map</title>
+<link rel="stylesheet" href="/vendor/leaflet.css" onerror="loadLeafletCssFallback()" />
+<script>
+function loadLeafletCssFallback(){
+  if (document.getElementById('leaflet-css-cdn')) return;
+  var l = document.createElement('link');
+  l.id = 'leaflet-css-cdn';
+  l.rel = 'stylesheet';
+  l.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  document.head.appendChild(l);
+}
+function loadLeafletJsFallback(){
+  if (window.L) return;
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  s.onload = ensureStart;
+  document.body.appendChild(s);
+}
+function ensureStart(){
+  if (window.startApp && typeof window.startApp === 'function' && window.L) window.startApp();
+}
+document.addEventListener('DOMContentLoaded', ensureStart);
+window.addEventListener('load', ensureStart);
+</script>
+<style>
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: rgba(18,18,35,0.92);
+  --accent: #d4a373;
+  --accent-hover: #e6c295;
+  --text: #e8e8e8;
+  --text-muted: #8b8b9a;
+  --border: rgba(255,255,255,0.08);
+  --success: #6ee7b7;
+  --danger: #f87171;
+  --cat-spawn:#ff6b6b; --cat-building:#4ecdc4; --cat-farm:#95e1d3;
+  --cat-mine:#f7dc6f; --cat-landmark:#bb8fce; --cat-shop:#85c1e9; --cat-other:#94a3b8;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif;background:var(--bg-primary);color:var(--text);overflow:hidden;font-size:14px}
+#map{position:absolute;inset:0;z-index:0;background:#0a0a14;cursor:crosshair}
+.ui-layer{position:absolute;inset:0;z-index:1000;pointer-events:none}
+.ui-layer>*{pointer-events:auto}
+.top-bar{position:absolute;top:0;left:0;right:0;height:52px;background:var(--bg-secondary);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:1001}
+.logo{font-size:18px;font-weight:800;color:var(--accent);letter-spacing:1px;display:flex;align-items:center;gap:8px}
+.user-section{display:flex;align-items:center;gap:10px}
+.btn{padding:6px 16px;border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:6px;cursor:pointer;font-size:13px;transition:all .2s;font-family:inherit}
+.btn:hover{background:var(--accent);color:var(--bg-primary)}
+.btn-primary{background:var(--accent);color:var(--bg-primary);border:none}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-danger{border-color:var(--danger);color:var(--danger)}
+.btn-danger:hover{background:var(--danger);color:#fff}
+.btn-sm{padding:4px 12px;font-size:12px}
+.btn-icon{width:28px;height:28px;border:none;background:rgba(255,255,255,0.08);color:var(--text);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1}
+.btn-icon:hover{background:rgba(255,255,255,0.15)}
+.sidebar{position:absolute;top:64px;left:12px;width:300px;max-height:calc(100vh - 90px);background:var(--bg-secondary);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;transition:transform .3s cubic-bezier(.4,0,.2,1)}
+.sidebar.collapsed{transform:translateX(-320px)}
+.sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+.sidebar-header h3{font-size:14px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:6px}
+.filter-bar{padding:12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.marker-list{flex:1;overflow-y:auto;padding:8px}
+.marker-item{padding:10px 12px;margin-bottom:6px;background:rgba(255,255,255,0.03);border-radius:8px;cursor:pointer;transition:all .2s;border-left:3px solid transparent}
+.marker-item:hover{background:rgba(255,255,255,0.07)}
+.marker-item.active{background:rgba(212,163,115,0.12);border-left-color:var(--accent)}
+.marker-item-title{font-size:13px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.marker-item-meta{font-size:11px;color:var(--text-muted)}
+.marker-item-coords{font-family:'SF Mono',Monaco,monospace;font-size:11px;color:var(--accent);margin-top:3px;opacity:.8}
+.marker-item .badge-private{font-size:10px;background:rgba(255,255,255,0.08);color:var(--text-muted);padding:1px 6px;border-radius:4px;font-weight:500}
+.cat-spawn{--cat-color:var(--cat-spawn)}.cat-building{--cat-color:var(--cat-building)}.cat-farm{--cat-color:var(--cat-farm)}
+.cat-mine{--cat-color:var(--cat-mine)}.cat-landmark{--cat-color:var(--cat-landmark)}.cat-shop{--cat-color:var(--cat-shop)}.cat-other{--cat-color:var(--cat-other)}
+.marker-item{border-left-color:var(--cat-color,transparent)}
+.panel{position:absolute;background:var(--bg-secondary);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;padding:20px;min-width:300px;box-shadow:0 12px 40px rgba(0,0,0,0.5)}
+.panel.hidden{display:none!important}
+.marker-panel{top:64px;right:16px;width:320px}
+.auth-panel{top:50%;left:50%;transform:translate(-50%,-50%);width:360px}
+.panel h3{margin-bottom:16px;font-size:15px;color:var(--accent);font-weight:700}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;margin-bottom:6px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+input[type="text"],input[type="password"],input[type="number"],textarea,select{width:100%;padding:8px 12px;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;font-family:inherit;transition:border-color .2s}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:60px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.coord-display{position:absolute;bottom:24px;right:24px;background:var(--bg-secondary);backdrop-filter:blur(8px);padding:8px 16px;border-radius:10px;border:1px solid var(--border);font-family:'SF Mono',Monaco,monospace;font-size:13px;color:var(--accent);pointer-events:none;font-weight:600;letter-spacing:.5px}
+.custom-marker{display:flex;align-items:center;justify-content:center;width:32px!important;height:32px!important;border-radius:50%;background:var(--marker-color,var(--accent));border:2px solid rgba(255,255,255,0.9);box-shadow:0 2px 12px rgba(0,0,0,0.5),0 0 0 4px rgba(0,0,0,0.2);font-size:15px;transition:transform .2s;cursor:pointer}
+.custom-marker:hover{transform:scale(1.25);z-index:1000!important}
+.custom-marker::after{content:'';position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid var(--marker-color,var(--accent))}
+.leaflet-popup-content-wrapper{background:var(--bg-secondary);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:12px;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+.leaflet-popup-tip{background:var(--bg-secondary);border:1px solid var(--border)}
+.leaflet-popup-content{margin:12px 16px;font-size:13px;line-height:1.6;min-width:180px}
+.leaflet-popup-content h4{margin:0 0 6px 0;color:var(--accent);font-size:14px;font-weight:700}
+.leaflet-container a.leaflet-popup-close-button{color:var(--text-muted);top:6px;right:6px;font-size:18px}
+.leaflet-container a.leaflet-popup-close-button:hover{color:var(--text)}
+.leaflet-control-zoom{border:none!important;box-shadow:0 2px 12px rgba(0,0,0,0.3)!important;margin-bottom:70px!important}
+.leaflet-control-zoom a{background:var(--bg-secondary)!important;color:var(--text)!important;border-color:var(--border)!important;transition:all .2s}
+.leaflet-control-zoom a:hover{background:rgba(255,255,255,0.1)!important;color:var(--accent)!important}
+.toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:var(--bg-secondary);backdrop-filter:blur(12px);border:1px solid var(--border);padding:10px 24px;border-radius:10px;z-index:3000;font-size:13px;animation:slideDown .3s ease;font-weight:500}
+.toast.error{border-color:var(--danger);color:var(--danger)}
+.toast.success{border-color:var(--success);color:var(--success)}
+@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
+@media(max-width:768px){.sidebar{width:260px;top:58px}.marker-panel{width:calc(100vw - 32px);right:16px;left:16px}.auth-panel{width:90vw}.coord-display{bottom:16px;right:16px;font-size:12px}}
+.coord-jump{display:flex;align-items:center;gap:6px;margin-right:12px}
+.coord-jump input{width:80px;padding:4px 8px;font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="ui-layer">
+  <div class="top-bar">
+    <div class="logo">🗺️ MC Server Map</div>
+    <div style="display:flex;align-items:center;">
+      <div class="coord-jump">
+        <input type="number" id="jumpX" placeholder="X">
+        <input type="number" id="jumpZ" placeholder="Z">
+        <button class="btn btn-sm" onclick="jumpToCoord()">跳转</button>
+      </div>
+      <div class="user-section" id="userSection"></div>
+    </div>
+  </div>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h3>📍 标注列表</h3>
+      <button class="btn-icon" onclick="toggleSidebar()">✕</button>
+    </div>
+    <div class="filter-bar">
+      <input type="text" id="searchMarker" placeholder="搜索标注..." oninput="filterMarkers()">
+      <select id="filterCategory" onchange="filterMarkers()"><option value="">全部类别</option></select>
+      <select id="filterOwner" onchange="filterMarkers()" style="display:none;">
+        <option value="">全部标注</option>
+        <option value="me">仅我的标注</option>
+      </select>
+    </div>
+    <div class="marker-list" id="markerList"></div>
+  </div>
+  <div class="panel marker-panel hidden" id="markerPanel"></div>
+  <div class="panel auth-panel hidden" id="authPanel"></div>
+  <div class="panel auth-panel hidden" id="userPanel"></div>
+  <div class="panel auth-panel hidden" id="settingsPanel"></div>
+  <div class="coord-display" id="coordDisplay">X: 0, Z: 0</div>
+</div>
+<script src="/vendor/leaflet.js" onerror="loadLeafletJsFallback()"></script>
+<script>
+const CONFIG = {
+  tileSize: 1024,
+  categories: [
+    {id:'spawn',name:'出生点',icon:'🏠',color:'#ff6b6b'},
+    {id:'building',name:'建筑',icon:'🏰',color:'#4ecdc4'},
+    {id:'farm',name:'农场',icon:'🌾',color:'#95e1d3'},
+    {id:'mine',name:'矿洞',icon:'⛏️',color:'#f7dc6f'},
+    {id:'landmark',name:'地标',icon:'🗿',color:'#bb8fce'},
+    {id:'shop',name:'商店',icon:'🏪',color:'#85c1e9'},
+    {id:'other',name:'其他',icon:'📌',color:'#94a3b8'}
+  ]
+};
+
+const MCCRS = L.extend({}, L.CRS.Simple, {
+  transformation: new L.Transformation(1, 0, 1, 0)
+});
+
+let map, markersLayer, markersData = [], currentUser = null, selectedMarker = null, tempLatLng = null;
+
+function escapeHtml(t){if(!t)return'';const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+function showToast(msg,type='success'){const e=document.querySelector('.toast');if(e)e.remove();const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(-10px)';setTimeout(()=>t.remove(),300)},2800)}
+
+// ===== 判断是否有有效的自定义图标（把数据库旧默认值 'marker' 视为空） =====
+function getCustomIcon(icon) {
+  if (!icon || icon === 'marker') return '';
+  const len = Array.from(icon).length;
+  return len > 0 && len <= 3 ? icon : '';
+}
+
+function initMap(){
+  map = L.map('map',{
+    crs: MCCRS,
+    minZoom: -3,
+    maxZoom: 3,
+    zoomControl: false,
+    attributionControl: false,
+    noWrap: true
+  }).setView([0,0],0);
+
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+
+  // 瓦片视口懒加载：只在平移/缩放结束后更新可见瓦片（地图结构不变）
+  map.on('moveend zoomend', updateVisibleTiles);
+
+  map.on('mousemove', e => {
+    const x = Math.round(e.latlng.lng);
+    const z = Math.round(e.latlng.lat);
+    document.getElementById('coordDisplay').textContent = `X: ${x}, Z: ${z}`;
+  });
+
+  map.on('click', e => {
+    if (e.originalEvent.target.closest('.custom-marker')) return;
+    if (!currentUser) { showToast('请先登录后再添加标注','error'); return; }
+    tempLatLng = e.latlng;
+    openMarkerPanel(null, e.latlng);
+  });
+}
+
+let tileIndex = [];
+const activeOverlays = new Map(); // key: "x,z" -> L.imageOverlay
+
+function tileKey(t){ return t.x + ',' + t.z; }
+
+// 只加载视野内（含 30% 预加载区）的瓦片，视野外移除 —— 地图结构与坐标映射不变
+function updateVisibleTiles(){
+  if (!map || tileIndex.length === 0) return;
+  const view = map.getBounds().pad(0.3);
+  const wanted = new Set();
+  tileIndex.forEach(t => {
+    const bounds = L.latLngBounds([t.z, t.x], [t.z + CONFIG.tileSize, t.x + CONFIG.tileSize]);
+    if (view.intersects(bounds)) {
+      const key = tileKey(t);
+      wanted.add(key);
+      if (!activeOverlays.has(key)) {
+        activeOverlays.set(key, L.imageOverlay(t.url, bounds, { opacity: 1 }).addTo(map));
+      }
+    }
+  });
+  activeOverlays.forEach((ov, key) => {
+    if (!wanted.has(key)) {
+      map.removeLayer(ov);
+      activeOverlays.delete(key);
+    }
+  });
+}
+
+async function loadTileIndex(){
+  try {
+    const r = await fetch('/api/tiles');
+    if (!r.ok) return;
+    tileIndex = await r.json();
+    if (tileIndex.length === 0) return;
+    const xs = tileIndex.map(t => t.x);
+    const zs = tileIndex.map(t => t.z);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs) + CONFIG.tileSize;
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs) + CONFIG.tileSize;
+    map.fitBounds(L.latLngBounds([[minZ, minX], [maxZ, maxX]]), { animate: false });
+    updateVisibleTiles();
+  } catch (e) {
+    console.log('瓦片索引加载失败');
+  }
+}
+
+function jumpToCoord(){
+  const x = parseInt(document.getElementById('jumpX').value);
+  const z = parseInt(document.getElementById('jumpZ').value);
+  if (isNaN(x) || isNaN(z)) return showToast('请输入有效坐标','error');
+  map.flyTo([z, x], 1, {duration: .8});
+}
+
+function initUI(){
+  const s = document.getElementById('filterCategory');
+  CONFIG.categories.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = c.icon + ' ' + c.name;
+    s.appendChild(o);
+  });
+}
+function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('collapsed'); }
+function closePanels(){ document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden')); tempLatLng = null; selectedMarker = null; }
+
+async function checkAuth(){
+  const t = localStorage.getItem('mcmap_token');
+  if (!t) { currentUser = null; updateUserUI(); return; }
+  try {
+    const r = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${t}` } });
+    if (!r.ok) throw new Error('Token无效');
+    const data = await r.json();
+    currentUser = { token: t, username: data.username, role: data.role };
+    localStorage.setItem('mcmap_user', data.username);
+    localStorage.setItem('mcmap_role', data.role);
+  } catch (e) {
+    localStorage.removeItem('mcmap_token');
+    localStorage.removeItem('mcmap_user');
+    localStorage.removeItem('mcmap_role');
+    currentUser = null;
+  }
+  updateUserUI();
+}
+
+function updateUserUI(){
+  const s = document.getElementById('userSection');
+  const ownerFilter = document.getElementById('filterOwner');
+  if (currentUser) {
+    let adminBtn = '';
+    if (currentUser.role === 'admin' || currentUser.role === 'owner') {
+        adminBtn = `<button class="btn btn-sm" onclick="openUserPanel()">👥 用户管理</button>`;
+    }
+    s.innerHTML = `<span style="color:var(--text-muted);font-size:12px;">${currentUser.role==='owner'?'👑':(currentUser.role==='admin'?'🛡️':'👤')} ${escapeHtml(currentUser.username)}</span>
+                   <button class="btn btn-sm" onclick="openSettingsPanel()">⚙️ 设置</button>
+                   ${adminBtn}
+                   <button class="btn btn-sm" onclick="logout()">退出</button>`;
+    if (ownerFilter) ownerFilter.style.display = 'block';
+  } else {
+    s.innerHTML = `<button class="btn btn-sm" onclick="openAuthPanel('login')">登录</button><button class="btn btn-sm btn-primary" onclick="openAuthPanel('register')">注册</button>`;
+    if (ownerFilter) { ownerFilter.style.display = 'none'; ownerFilter.value = ''; }
+  }
+  filterMarkers();
+}
+function logout(){
+  localStorage.removeItem('mcmap_token');
+  localStorage.removeItem('mcmap_user');
+  localStorage.removeItem('mcmap_role');
+  currentUser = null; updateUserUI(); showToast('已退出登录');
+}
+
+function openMarkerPanel(marker, latlng){
+  const p = document.getElementById('markerPanel');
+  const edit = !!marker;
+  selectedMarker = marker;
+  const x = marker ? marker.x : Math.round(latlng.lng);
+  const z = marker ? marker.z : Math.round(latlng.lat);
+
+  const catOpts = CONFIG.categories.map(c =>
+    `<option value="${c.id}" ${marker?.category===c.id?'selected':''}>${c.icon} ${c.name}</option>`
+  ).join('');
+
+  const canModify = marker ? (currentUser && (currentUser.username === marker.created_by || currentUser.role === 'admin' || currentUser.role === 'owner')) : true;
+
+  // 修复：把旧默认值 'marker' 当空字符串处理，编辑时不再显示 marker
+  const iconValue = getCustomIcon(marker?.icon);
+
+  p.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3>${edit ? '✏️ 编辑标注' : '📍 添加标注'}</h3>
+      <button class="btn-icon" onclick="closePanels()">✕</button>
+    </div>
+    <div class="form-group">
+      <label>世界坐标</label>
+      <div style="font-family:monospace;color:var(--accent);font-size:13px;font-weight:600;">X: ${x}, Z: ${z}</div>
+    </div>
+    <div class="form-group">
+      <label>标题</label>
+      <input type="text" id="mTitle" value="${escapeHtml(marker?.title || '')}" placeholder="例如：主城出生点">
+    </div>
+    <div class="form-group">
+      <label>类别</label>
+      <select id="mCategory">${catOpts}</select>
+    </div>
+    <div class="form-group">
+      <label>自定义图标（Emoji或字符，最多3个字符）</label>
+      <input type="text" id="mIcon" maxlength="5" value="${escapeHtml(iconValue)}" placeholder="留空使用类别默认图标">
+    </div>
+    <div class="form-group">
+      <label>描述</label>
+      <textarea id="mDesc" rows="3" placeholder="添加详细描述...">${escapeHtml(marker?.description || '')}</textarea>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;text-transform:none;font-size:13px;">
+        <input type="checkbox" id="mPublic" ${marker?.is_public !== 0 ? 'checked' : ''} style="width:auto;">
+        公开标注（所有人可见）
+      </label>
+    </div>
+    <div class="form-actions">
+      ${edit && canModify ? `<button class="btn btn-danger btn-sm" onclick="deleteMarker(${marker.id})">删除</button>` : ''}
+      <button class="btn btn-sm" onclick="closePanels()">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="saveMarker(${x}, ${z})">${edit ? '保存' : '添加'}</button>
+    </div>`;
+  p.classList.remove('hidden');
+}
+
+function openAuthPanel(mode){
+  const p = document.getElementById('authPanel');
+  p.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3>${mode === 'login' ? '🔑 登录' : '📝 注册'}</h3>
+      <button class="btn-icon" onclick="closePanels()">✕</button>
+    </div>
+    <div class="form-group"><label>用户名</label><input type="text" id="authUser" placeholder="输入用户名"></div>
+    <div class="form-group"><label>密码</label><input type="password" id="authPass" placeholder="输入密码"></div>
+    <div class="form-actions">
+      <button class="btn btn-sm" onclick="closePanels()">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="handleAuth('${mode}')">${mode === 'login' ? '登录' : '注册'}</button>
+    </div>
+    <div style="margin-top:12px;text-align:center;font-size:12px;color:var(--text-muted);">
+      ${mode === 'login'
+        ? '还没有账号？<a href="#" onclick="openAuthPanel(\'register\');return false;" style="color:var(--accent);text-decoration:none;">去注册</a>'
+        : '已有账号？<a href="#" onclick="openAuthPanel(\'login\');return false;" style="color:var(--accent);text-decoration:none;">去登录</a>'}
+    </div>`;
+  p.classList.remove('hidden');
+}
+
+async function handleAuth(mode){
+  const u = document.getElementById('authUser').value.trim();
+  const p = document.getElementById('authPass').value;
+  if (!u || !p) return showToast('请填写完整信息', 'error');
+  try {
+    const r = await fetch(`/api/auth/${mode}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: p})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    if (mode === 'login') {
+      localStorage.setItem('mcmap_token', d.token);
+      localStorage.setItem('mcmap_user', d.username);
+      localStorage.setItem('mcmap_role', d.role);
+      currentUser = {token: d.token, username: d.username, role: d.role};
+      updateUserUI(); showToast('登录成功', 'success'); closePanels();
+    } else {
+      showToast('注册成功，请登录', 'success'); openAuthPanel('login');
+    }
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function loadMarkers(){
+  try {
+    const headers = {};
+    if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+    const r = await fetch('/api/markers', { headers });
+    markersData = await r.json();
+    renderMarkers();
+    renderMarkerList();
+  } catch (e) { showToast('加载标注失败: ' + e.message, 'error'); }
+}
+
+function renderMarkers(){
+  markersLayer.clearLayers();
+  const fc = document.getElementById('filterCategory').value;
+  const sc = document.getElementById('searchMarker').value.toLowerCase();
+  const fo = document.getElementById('filterOwner').value;
+
+  markersData.forEach(m => {
+    if (fc && m.category !== fc) return;
+    if (sc && !m.title.toLowerCase().includes(sc)) return;
+    if (fo === 'me' && (!currentUser || m.created_by !== currentUser.username)) return;
+
+    const cat = CONFIG.categories.find(c => c.id === m.category) || CONFIG.categories[6];
+    // 修复：使用 getCustomIcon 统一处理，把 'marker' 当空值
+    const customIcon = getCustomIcon(m.icon);
+    const iconChar = customIcon || cat.icon;
+    
+    const icon = L.divIcon({
+      className: 'custom-marker-wrapper',
+      html: `<div class="custom-marker" style="--marker-color:${cat.color}">${iconChar}</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    });
+    const mk = L.marker([m.z, m.x], {icon}).addTo(markersLayer);
+
+    const popup = `
+      <h4>${iconChar} ${escapeHtml(m.title)}</h4>
+      <div style="color:var(--text-muted);font-size:11px;margin-bottom:6px;">X: ${m.x}, Z: ${m.z} · 由 ${escapeHtml(m.created_by)} 添加${m.is_public === 0 ? ' · <span style="color:var(--danger)">私有</span>' : ''}</div>
+      <div style="color:var(--text);">${escapeHtml(m.description) || '<i style="color:var(--text-muted)">无描述</i>'}</div>
+      ${canEdit(m) ? `<div style="margin-top:10px;"><button class="btn btn-sm" onclick="editMarker(${m.id})" style="font-size:11px;">编辑标注</button></div>` : ''}`;
+
+    mk.bindPopup(popup);
+    mk.on('click', () => {
+      document.querySelectorAll('.marker-item').forEach(el => el.classList.remove('active'));
+      const el = document.getElementById(`mi-${m.id}`);
+      if (el) { el.classList.add('active'); el.scrollIntoView({behavior: 'smooth', block: 'nearest'}); }
+    });
+  });
+}
+
+function renderMarkerList(){
+  const list = document.getElementById('markerList');
+  const fc = document.getElementById('filterCategory').value;
+  const sc = document.getElementById('searchMarker').value.toLowerCase();
+  const fo = document.getElementById('filterOwner').value;
+  list.innerHTML = '';
+
+  markersData.forEach(m => {
+    if (fc && m.category !== fc) return;
+    if (sc && !m.title.toLowerCase().includes(sc)) return;
+    if (fo === 'me' && (!currentUser || m.created_by !== currentUser.username)) return;
+
+    const cat = CONFIG.categories.find(c => c.id === m.category) || CONFIG.categories[6];
+    // 修复：同样使用 getCustomIcon
+    const customIcon = getCustomIcon(m.icon);
+    const iconChar = customIcon || cat.icon;
+
+    const item = document.createElement('div');
+    item.className = `marker-item cat-${m.category}`;
+    item.id = `mi-${m.id}`;
+    item.innerHTML = `
+      <div class="marker-item-title">
+        <span>${iconChar}</span>
+        <span>${escapeHtml(m.title)}</span>
+        ${m.is_public === 0 ? '<span class="badge-private">私有</span>' : ''}
+      </div>
+      <div class="marker-item-meta">${cat.name} · ${escapeHtml(m.created_by)}</div>
+      <div class="marker-item-coords">X: ${m.x}, Z: ${m.z}</div>`;
+    item.addEventListener('click', () => {
+      map.flyTo([m.z, m.x], Math.max(map.getZoom(), 0), {duration: .5});
+      markersLayer.eachLayer(l => {
+        const ll = l.getLatLng();
+        if (Math.round(ll.lng) === m.x && Math.round(ll.lat) === m.z) l.openPopup();
+      });
+      document.querySelectorAll('.marker-item').forEach(el => el.classList.remove('active'));
+      item.classList.add('active');
+    });
+    list.appendChild(item);
+  });
+
+  if (!list.children.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:30px 10px;">暂无标注</div>';
+  }
+}
+
+function filterMarkers(){ renderMarkers(); renderMarkerList(); }
+
+function canEdit(m){
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || currentUser.role === 'owner') return true;
+    return currentUser.username === m.created_by;
+}
+
+function editMarker(id){ const m = markersData.find(x => x.id === id); if (m) openMarkerPanel(m); }
+
+async function saveMarker(x, z){
+  const title = document.getElementById('mTitle').value.trim();
+  const category = document.getElementById('mCategory').value;
+  const iconVal = document.getElementById('mIcon').value.trim();
+  const desc = document.getElementById('mDesc').value.trim();
+  const isPublic = document.getElementById('mPublic').checked;
+  
+  if (Array.from(iconVal).length > 3) {
+    return showToast('自定义图标最多3个字符', 'error');
+  }
+
+  if (!title) return showToast('请输入标题', 'error');
+  if (!currentUser) return showToast('请先登录', 'error');
+
+  const payload = {x, z, title, category, description: desc, isPublic, icon: iconVal};
+  
+  console.log('保存标注 payload:', payload); // 调试用
+  
+  try {
+    let r;
+    if (selectedMarker) {
+      r = await fetch(`/api/markers/${selectedMarker.id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${currentUser.token}`},
+        body: JSON.stringify(payload)
+      });
+    } else {
+      r = await fetch('/api/markers', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${currentUser.token}`},
+        body: JSON.stringify(payload)
+      });
+    }
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    console.log('保存成功，返回数据 icon:', d.icon); // 调试用
+    showToast(selectedMarker ? '标注已更新' : '标注已添加', 'success');
+    closePanels();
+    await loadMarkers();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteMarker(id){
+  if (!confirm('确定要删除这个标注吗？此操作不可恢复。')) return;
+  try {
+    const r = await fetch(`/api/markers/${id}`, {
+      method: 'DELETE',
+      headers: {'Authorization': `Bearer ${currentUser.token}`}
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    showToast('标注已删除', 'success');
+    closePanels();
+    await loadMarkers();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function openUserPanel(){
+    if (!currentUser) return;
+    const p = document.getElementById('userPanel');
+    p.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3>👥 用户管理</h3><button class="btn-icon" onclick="closePanels()">✕</button></div><div id="userList">加载中...</div>`;
+    p.classList.remove('hidden');
+    
+    const r = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${currentUser.token}` } });
+    const users = await r.json();
+    if (!r.ok) return showToast(users.error, 'error');
+
+    const list = document.getElementById('userList');
+    list.innerHTML = users.map(u => {
+        const locked = (u.id === currentUser.id || u.role === 'owner');
+        
+        let actionButtons = '';
+        if (!locked) {
+            if (u.role === 'user') {
+                actionButtons = `<button class="btn btn-sm" onclick="updateRole(${u.id}, 'admin')">设为管理员</button>`;
+            } else if (u.role === 'admin') {
+                actionButtons = `<button class="btn btn-sm btn-danger" onclick="updateRole(${u.id}, 'user')">撤销管理员</button>`;
+            }
+        } else if (u.role === 'owner') {
+            actionButtons = `<span style="color:var(--accent);font-size:12px;">👑 所有者</span>`;
+        }
+
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid var(--border);">
+            <span>${escapeHtml(u.username)} <small style="color:var(--text-muted)">(${u.role})</small></span>
+            ${actionButtons}
+        </div>`;
+    }).join('');
+}
+
+async function updateRole(id, role) {
+    const r = await fetch(`/api/users/${id}/role`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${currentUser.token}`},
+        body: JSON.stringify({ role })
+    });
+    const d = await r.json();
+    if (!r.ok) return showToast(d.error, 'error');
+    showToast('权限已更新', 'success');
+    openUserPanel();
+}
+
+function openSettingsPanel(){
+    const p = document.getElementById('settingsPanel');
+    p.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3>⚙️ 账号设置</h3><button class="btn-icon" onclick="closePanels()">✕</button>
+    </div>
+    <div class="form-group"><label>旧密码</label><input type="password" id="oldPass" placeholder="必须输入旧密码"></div>
+    <div class="form-group"><label>新用户名</label><input type="text" id="newUsername" value="${escapeHtml(currentUser.username)}"></div>
+    <div class="form-group"><label>新密码</label><input type="password" id="newPass" placeholder="至少4位"></div>
+    <div class="form-actions">
+        <button class="btn btn-sm" onclick="closePanels()">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="saveUserInfo()">保存修改</button>
+    </div>`;
+    p.classList.remove('hidden');
+}
+
+async function saveUserInfo(){
+    const oldPass = document.getElementById('oldPass').value;
+    const newUsername = document.getElementById('newUsername').value.trim();
+    const newPass = document.getElementById('newPass').value;
+    if (!oldPass || !newUsername || !newPass) return showToast('请填写完整', 'error');
+
+    const r = await fetch('/api/auth/update', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${currentUser.token}`},
+        body: JSON.stringify({ oldPassword: oldPass, newUsername, newPassword: newPass })
+    });
+    const d = await r.json();
+    if (!r.ok) return showToast(d.error, 'error');
+    
+    localStorage.setItem('mcmap_token', d.token);
+    currentUser = { token: d.token, username: d.username, role: currentUser.role };
+    updateUserUI();
+    closePanels();
+    showToast('账号信息修改成功', 'success');
+}
+
+function startApp(){
+  if (window.__appStarted) return;
+  window.__appStarted = true;
+  initMap();
+  initUI();
+  checkAuth().then(() => Promise.all([loadTileIndex(), loadMarkers()]));
+}
+ensureStart();
+</script>
+</body>
+</html>

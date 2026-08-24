@@ -1,0 +1,14 @@
+# Cloudflare Tunnel 配置示例。
+# 使用步骤：
+#   1. cloudflared tunnel login            # 浏览器授权，生成证书 ~/.cloudflared/cert.pem
+#   2. cloudflared tunnel create mcmap     # 创建隧道，得到 <TUNNEL_ID>.json（复制到 ./cloudflared/）
+#   3. 将本文件另存为 ./cloudflared/config.yml，把 <TUNNEL_ID> 替换为实际值
+#   4. 在 Cloudflare 面板 DNS 添加 CNAME：map  ->  <TUNNEL_ID>.cfargotunnel.com（代理开启/橙色云朵）
+#   5. docker compose up -d --build
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: map.example.com
+    service: http://app:3000
+  - service: http_status:404

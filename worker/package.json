@@ -1,0 +1,7 @@
+{
+  "name": "mc-map-server-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Workers serverless build (zero npm dependencies)"
+}

@@ -1,0 +1,40 @@
+# mc-map-server 部署编排：应用 + Cloudflare Tunnel（免费 HTTPS / CDN / DDoS 防护）
+#
+# 首次部署步骤（详见 README.md）：
+#   1. cp .env.example .env  并填写 JWT_SECRET（openssl rand -base64 48）与 ADMIN_PASSWORD
+#   2. 把地图瓦片放入 ./data/tiles/
+#   3. 在 Cloudflare 面板创建隧道并生成证书（见 cloudflared/config.example.yml），
+#      填写 .env 中的 TUNNEL_ID，放置 <TUNNEL_ID>.json 到 ./cloudflared/
+#   4. docker compose up -d --build
+#   5. 在 Cloudflare DNS 添加 CNAME 指向 <TUNNEL_ID>.cfargotunnel.com
+
+services:
+  app:
+    build: .
+    container_name: mcmap
+    restart: unless-stopped
+    # 仅监听本机回环地址：公网流量一律走 Cloudflare Tunnel，不直接暴露端口
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - JWT_SECRET=${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data:/app/data        # SQLite 数据库 + 瓦片（更新地图只需替换 ./data/tiles/，无需重建镜像）
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: mcmap-tunnel
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - app

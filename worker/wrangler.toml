@@ -1,0 +1,20 @@
+# Cloudflare Workers 部署配置（真 Serverless，零 npm 依赖）
+# 使用步骤见 README「Serverless 部署（Workers + D1 + R2）」章节
+name = "mc-map-server"
+main = "index.js"
+compatibility_date = "2025-06-01"
+
+# 前端静态资源（index.html / vendor）由 Workers Assets 承载，Worker 只处理 /api 与 /tiles
+[assets]
+directory = "../public"
+
+# 数据库：先执行 wrangler d1 create mc-map-db，再把输出的 database_id 填入
+[[d1_databases]]
+binding = "DB"
+database_name = "mc-map-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# 瓦片存储：先执行 wrangler r2 bucket create mc-map-tiles，再用 rclone 同步瓦片
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "mc-map-tiles"

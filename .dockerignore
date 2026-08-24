@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.env
+.git
+.gitignore
+backups
+data
+test-mcmap.db
+*.log
+README.md
+Dockerfile
+docker-compose.yml
+ecosystem.config.js
+cloudflared

@@ -1,0 +1,19 @@
+{
+  "name": "mc-map-server",
+  "version": "1.0.0",
+  "description": "Minecraft Server Map with Annotations",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx nodemon server.js",
+    "backup": "node scripts/backup.js",
+    "smoke": "node scripts/smoke-test.js",
+    "fetch-vendor": "node scripts/fetch-vendor.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
