@@ -17,6 +17,7 @@ export default {
         jwtExpiresIn: env.JWT_EXPIRES_IN ? parseInt(env.JWT_EXPIRES_IN, 10) : 604800,
         adminPassword: env.ADMIN_PASSWORD || null,
         mail: { apiKey: env.RESEND_API_KEY || '', from: env.MAIL_FROM || 'noreply@worldeternal.xyz' },
+        turnstile: env.TURNSTILE_SECRET_KEY || '',
       });
     }
     return cached(request);

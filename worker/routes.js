@@ -3,6 +3,7 @@
 import { verifyJwt, signJwt } from './jwt.js';
 import { hashPassword, verifyPassword } from './password.js';
 import { isValidEmail, sendEmail, issueCode, verifyCode, codeEmailHtml } from './email.js';
+import { verifyTurnstile } from './turnstile.js';
 
 function isInt(v) {
   return v !== '' && v !== null && v !== undefined && Number.isInteger(Number(v));
@@ -17,6 +18,13 @@ function safeIcon(icon, fallback) {
 
 function isValidUsername(u) {
   return typeof u === 'string' && u.trim().length >= 3 && u.trim().length <= 32;
+}
+
+// 人机验证（未配置 secret 时放行；失败返回 400 响应，通过返回 null）
+async function checkTurnstile(req, ctx, body) {
+  const ok = await verifyTurnstile(ctx.turnstile, body && body.turnstile, req.headers.get('cf-connecting-ip') || '');
+  if (!ok) return json({ error: '请完成人机验证' }, 400);
+  return null;
 }
 
 // 认证：返回 { user } 或抛 { status, msg }
@@ -39,6 +47,8 @@ export async function optionalAuthReq(req, ctx) {
 // ---------- 认证 ----------
 export async function register(req, ctx) {
   const body = await req.json().catch(() => ({}));
+  const t = await checkTurnstile(req, ctx, body);
+  if (t) return t;
   const username = body && body.username;
   const password = body && body.password;
   const email = body && body.email;
@@ -66,6 +76,8 @@ export async function register(req, ctx) {
 // 登录：仅邮箱+密码，且要求邮箱已验证
 export async function login(req, ctx) {
   const body = await req.json().catch(() => ({}));
+  const t = await checkTurnstile(req, ctx, body);
+  if (t) return t;
   const email = body && body.email;
   const password = body && body.password;
   if (typeof email !== 'string' || typeof password !== 'string') {
@@ -109,6 +121,8 @@ export async function updateAccount(req, ctx) {
 // ---------- 邮箱验证码认证（Resend） ----------
 export async function emailCode(req, ctx) {
   const body = await req.json().catch(() => ({}));
+  const t = await checkTurnstile(req, ctx, body);
+  if (t) return t;
   const email = body && body.email;
   const purpose = (body && body.purpose) || 'register';
   if (!isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
@@ -146,6 +160,8 @@ export async function verifyEmail(req, ctx) {
 
 export async function forgot(req, ctx) {
   const body = await req.json().catch(() => ({}));
+  const t = await checkTurnstile(req, ctx, body);
+  if (t) return t;
   const email = body && body.email;
   if (!isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
   const emailNorm = email.trim().toLowerCase();

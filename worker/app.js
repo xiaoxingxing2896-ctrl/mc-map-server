@@ -9,11 +9,12 @@ const VERSION = '1.0.0';
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://unpkg.com",
+  "script-src 'self' 'unsafe-inline' https://unpkg.com https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline' https://unpkg.com",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "connect-src 'self'",
+  "frame-src https://challenges.cloudflare.com",
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'none'",
@@ -106,6 +107,7 @@ export function createApp(deps) {
     jwtSecret: deps.jwtSecret,
     jwtExpiresIn: deps.jwtExpiresIn || 604800,
     mail: deps.mail || { apiKey: '', from: '' },
+    turnstile: deps.turnstile || '',
   };
   const globalLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 300 });
   const authLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
