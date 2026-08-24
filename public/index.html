@@ -439,7 +439,7 @@ function openAuthPanel(mode){
           <button class="btn btn-sm" style="white-space:nowrap" onclick="sendEmailCode('reset')">获取验证码</button>
         </div>
       </div>
-      <div class="form-group"><label>新密码</label><input type="password" id="authNewPass" placeholder="至少4位"></div>
+      <div class="form-group"><label>新密码</label><input type="password" id="authNewPass" placeholder="至少8位，且含大小写字母和数字"></div>
       <div class="cf-turnstile" id="cf-turnstile" style="display:none"></div>
       <div class="form-actions">
         <button class="btn btn-sm" onclick="closePanels()">取消</button>
@@ -804,7 +804,7 @@ function openSettingsPanel(){
     </div>
     <div class="form-group"><label>旧密码</label><input type="password" id="oldPass" placeholder="必须输入旧密码"></div>
     <div class="form-group"><label>新用户名</label><input type="text" id="newUsername" value="${escapeHtml(currentUser.username)}"></div>
-    <div class="form-group"><label>新密码</label><input type="password" id="newPass" placeholder="至少4位"></div>
+    <div class="form-group"><label>新密码</label><input type="password" id="newPass" placeholder="至少8位，且含大小写字母和数字"></div>
     <div class="form-actions">
         <button class="btn btn-sm" onclick="closePanels()">取消</button>
         <button class="btn btn-sm btn-primary" onclick="saveUserInfo()">保存修改</button>
