@@ -533,20 +533,7 @@ async function handleAuth(mode){
     const em = document.getElementById('authEmail').value.trim();
     const pw = document.getElementById('authPass').value;
     if (!em || !pw) return showToast('请填写邮箱和密码', 'error');
-    // 人机验证：点击登录后先出现验证框；验证通过后**需要再次点击登录**才真正提交
-    if (TURNSTILE_SITE_KEY) {
-      const tst = window.turnstile;
-      const el = document.getElementById('cf-turnstile');
-      const cur = tst ? tst.getResponse() : '';
-      if (tst && el && !cur) {
-        el.style.display = 'block';
-        if (!el.getAttribute('data-rendered')) {
-          el.setAttribute('data-rendered', '1');
-          tst.render(el, { sitekey: TURNSTILE_SITE_KEY }); // 只渲染，不自动提交
-        }
-        return showToast('请完成人机验证后，再次点击“登录”', 'info');
-      }
-    }
+    // 登录不启用人机验证（人机验证仅用于注册）
     return submitLogin(em, pw);
   } else if (mode === 'register') {
     const u = document.getElementById('authUser').value.trim();
@@ -563,10 +550,9 @@ async function submitLogin(em, pw){
   if (authBusy) return showToast('正在处理，请稍候', 'error');
   authBusy = true;
   try {
-    const tok = window.turnstile ? window.turnstile.getResponse() : '';
     const r = await fetch('/api/auth/login', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({email: em, password: pw, turnstile: tok})
+      body: JSON.stringify({email: em, password: pw})
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
@@ -595,7 +581,24 @@ async function submitRegister(u, pw, em, token){
   finally { authBusy = false; }
 }
 
+// 取得人机验证 token；若未完成则显示验证框并提示"再点一次"，返回 null
+function getTurnstileOrPrompt(){
+  if (!TURNSTILE_SITE_KEY) return '';
+  const tst = window.turnstile;
+  const el = document.getElementById('cf-turnstile');
+  const cur = tst ? tst.getResponse() : '';
+  if (cur) return cur;
+  if (tst && el) {
+    el.style.display = 'block';
+    if (!el.getAttribute('data-rendered')) { el.setAttribute('data-rendered', '1'); tst.render(el, { sitekey: TURNSTILE_SITE_KEY }); }
+    showToast('请先完成人机验证，再点一次', 'info');
+  }
+  return null;
+}
+
 async function sendEmailCode(purpose){
+  const tk = getTurnstileOrPrompt();
+  if (tk === null) return;
   const emEl = document.getElementById('authEmail');
   const email = emEl ? emEl.value.trim() : '';
   if (!email) return showToast('请先输入邮箱', 'error');
@@ -604,7 +607,7 @@ async function sendEmailCode(purpose){
   try {
     const r = await fetch('/api/auth/email/code', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({email, purpose})
+      body: JSON.stringify({email, purpose, turnstile: tk})
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
@@ -629,6 +632,8 @@ function startCodeCooldown(secs){
 }
 
 async function handleVerifyEmail(){
+  const tk = getTurnstileOrPrompt();
+  if (tk === null) return;
   if (authBusy) return showToast('正在处理，请稍候', 'error');
   authBusy = true;
   try {
@@ -638,7 +643,7 @@ async function handleVerifyEmail(){
     if (!email || !code) return showToast('请填写邮箱和验证码', 'error');
     const r = await fetch('/api/auth/verify-email', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({email, code})
+      body: JSON.stringify({email, code, turnstile: tk})
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
@@ -648,6 +653,8 @@ async function handleVerifyEmail(){
 }
 
 async function handleReset(){
+  const tk = getTurnstileOrPrompt();
+  if (tk === null) return;
   if (authBusy) return showToast('正在处理，请稍候', 'error');
   authBusy = true;
   try {
@@ -659,7 +666,7 @@ async function handleReset(){
     if (!isStrongPassword(np)) return showToast('密码需8位以上，且含大小写字母和数字', 'error');
     const r = await fetch('/api/auth/reset', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({email, code, newPassword: np})
+      body: JSON.stringify({email, code, newPassword: np, turnstile: tk})
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);

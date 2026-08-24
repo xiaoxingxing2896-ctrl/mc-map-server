@@ -88,11 +88,9 @@ export async function register(req, ctx) {
   }
 }
 
-// 登录：仅邮箱+密码，且要求邮箱已验证
+// 登录：仅邮箱+密码，且要求邮箱已验证（不启用人机验证）
 export async function login(req, ctx) {
   const body = await req.json().catch(() => ({}));
-  const t = await checkTurnstile(req, ctx, body);
-  if (t) return t;
   const email = body && body.email;
   const password = body && body.password;
   if (typeof email !== 'string' || typeof password !== 'string') {
@@ -139,6 +137,8 @@ const CODE_COOLDOWN_MS = 5 * 60 * 1000;
 
 export async function emailCode(req, ctx) {
   const body = await req.json().catch(() => ({}));
+  const t = await checkTurnstile(req, ctx, body);
+  if (t) return t;
   const email = body && body.email;
   const purpose = (body && body.purpose) || 'register';
   if (!isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
@@ -173,6 +173,8 @@ export async function emailCode(req, ctx) {
 
 export async function verifyEmail(req, ctx) {
   const body = await req.json().catch(() => ({}));
+  const t = await checkTurnstile(req, ctx, body);
+  if (t) return t;
   const email = body && body.email;
   const code = body && body.code;
   if (!isValidEmail(email) || !code) return json({ error: '邮箱或验证码无效' }, 400);
@@ -205,6 +207,8 @@ export async function forgot(req, ctx) {
 
 export async function resetPassword(req, ctx) {
   const body = await req.json().catch(() => ({}));
+  const t = await checkTurnstile(req, ctx, body);
+  if (t) return t;
   const email = body && body.email;
   const code = body && body.code;
   const newPassword = body && body.newPassword;
