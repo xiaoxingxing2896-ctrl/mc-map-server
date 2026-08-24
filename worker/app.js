@@ -92,19 +92,7 @@ async function initDatabase(db, adminPassword) {
   // 兼容已存在的旧 users 表：补充邮箱列（列已存在则忽略）
   try { await db.run("ALTER TABLE users ADD COLUMN email TEXT"); } catch {}
   try { await db.run("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0"); } catch {}
-  const owner = await db.get("SELECT * FROM users WHERE role = 'owner'");
-  if (owner) return;
-  const admin = await db.get("SELECT * FROM users WHERE role = 'admin'");
-  if (admin) {
-    await db.run("UPDATE users SET role = 'owner' WHERE id = ?", [admin.id]);
-    console.log('已自动将原 admin 升级为 Owner');
-    return;
-  }
-  const password = adminPassword || randomPassword();
-  const hash = await hashPassword(password);
-  await db.run("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", ['admin', hash, 'owner']);
-  if (adminPassword) console.log('已创建默认 Owner 账号: admin（密码由 ADMIN_PASSWORD 指定）');
-  else console.log(`已创建默认 Owner 账号: admin / ${password}（请立即登录修改密码）`);
+  // 无默认管理员：用户只能通过邮箱注册，第一个注册者自动成为 owner（见 register 逻辑）
 }
 
 function randomPassword() {
@@ -171,7 +159,6 @@ async function dispatch(request, method, path, ctx) {
   if (path === '/api/auth/register' && method === 'POST') return R.register(request, ctx);
   if (path === '/api/auth/login' && method === 'POST') return R.login(request, ctx);
   if (path === '/api/auth/email/code' && method === 'POST') return R.emailCode(request, ctx);
-  if (path === '/api/auth/email/login' && method === 'POST') return R.emailLogin(request, ctx);
   if (path === '/api/auth/verify-email' && method === 'POST') return R.verifyEmail(request, ctx);
   if (path === '/api/auth/forgot' && method === 'POST') return R.forgot(request, ctx);
   if (path === '/api/auth/reset' && method === 'POST') return R.resetPassword(request, ctx);

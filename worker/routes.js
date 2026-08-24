@@ -45,38 +45,38 @@ export async function register(req, ctx) {
   if (!isValidUsername(username) || typeof password !== 'string' || password.length < 4) {
     return json({ error: '用户名或密码无效（用户名3-32位，密码至少4位）' }, 400);
   }
-  // 邮箱可选：注册时带邮箱则会登记邮箱（未验证），后续可发送验证
-  const useEmail = email !== undefined && email !== null && String(email).trim() !== '';
-  if (useEmail && !isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
+  // 邮箱必填（必须邮箱注册后登录）
+  if (!isValidEmail(email)) return json({ error: '必须使用有效的邮箱注册' }, 400);
+  const emailNorm = email.trim().toLowerCase();
   const hash = await hashPassword(password);
   try {
-    let res;
-    if (useEmail) {
-      const emailNorm = String(email).trim().toLowerCase();
-      const dupe = await ctx.db.get("SELECT id FROM users WHERE email = ?", [emailNorm]);
-      if (dupe) return json({ error: '该邮箱已被注册' }, 400);
-      res = await ctx.db.run("INSERT INTO users (username, password_hash, email, email_verified) VALUES (?, ?, ?, ?)",
-        [username.trim(), hash, emailNorm, 0]);
-    } else {
-      res = await ctx.db.run("INSERT INTO users (username, password_hash) VALUES (?, ?)", [username.trim(), hash]);
-    }
-    return json({ message: '注册成功', userId: res.lastRowId });
+    const dupe = await ctx.db.get("SELECT id FROM users WHERE email = ?", [emailNorm]);
+    if (dupe) return json({ error: '该邮箱已被注册' }, 400);
+    // 无任何用户时，第一个注册者成为管理员(owner)
+    const cnt = await ctx.db.get("SELECT COUNT(*) AS c FROM users");
+    const role = (cnt && cnt.c === 0) ? 'owner' : 'user';
+    const res = await ctx.db.run("INSERT INTO users (username, password_hash, email, email_verified, role) VALUES (?, ?, ?, ?, ?)",
+      [username.trim(), hash, emailNorm, 0, role]);
+    return json({ message: '注册成功，请验证邮箱后登录', userId: res.lastRowId, role });
   } catch (e) {
-    return json({ error: '用户名已存在' }, 400);
+    return json({ error: '注册失败' }, 500);
   }
 }
 
+// 登录：仅邮箱+密码，且要求邮箱已验证
 export async function login(req, ctx) {
   const body = await req.json().catch(() => ({}));
-  const username = body && body.username;
+  const email = body && body.email;
   const password = body && body.password;
-  if (typeof username !== 'string' || typeof password !== 'string') {
-    return json({ error: '用户名或密码错误' }, 401);
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return json({ error: '邮箱或密码错误' }, 401);
   }
-  const user = await ctx.db.get("SELECT * FROM users WHERE username = ?", [username.trim()]);
-  if (!user) return json({ error: '用户名或密码错误' }, 401);
+  const emailNorm = email.trim().toLowerCase();
+  const user = await ctx.db.get("SELECT * FROM users WHERE email = ?", [emailNorm]);
+  if (!user) return json({ error: '邮箱或密码错误' }, 401);
+  if (user.email_verified !== 1) return json({ error: '邮箱未验证，请先验证邮箱' }, 403);
   const ok = await verifyPassword(password, user.password_hash);
-  if (!ok) return json({ error: '用户名或密码错误' }, 401);
+  if (!ok) return json({ error: '邮箱或密码错误' }, 401);
   const token = await signJwt({ id: user.id, username: user.username, role: user.role }, ctx.jwtSecret, ctx.jwtExpiresIn);
   return json({ token, username: user.username, role: user.role });
 }
@@ -110,14 +110,12 @@ export async function updateAccount(req, ctx) {
 export async function emailCode(req, ctx) {
   const body = await req.json().catch(() => ({}));
   const email = body && body.email;
-  const purpose = (body && body.purpose) || 'login';
+  const purpose = (body && body.purpose) || 'register';
   if (!isValidEmail(email)) return json({ error: '邮箱格式不正确' }, 400);
-  if (!['login', 'register', 'reset'].includes(purpose)) return json({ error: '无效的操作类型' }, 400);
+  if (!['register', 'reset'].includes(purpose)) return json({ error: '无效的操作类型' }, 400);
   const emailNorm = email.trim().toLowerCase();
   const user = await ctx.db.get("SELECT * FROM users WHERE email = ?", [emailNorm]);
-  if ((purpose === 'login' || purpose === 'reset') && !user) {
-    return json({ error: '该邮箱未注册' }, 404);
-  }
+  if (purpose === 'reset' && !user) return json({ error: '该邮箱未注册' }, 404);
   if (purpose === 'register') {
     // 注册验证：允许"已注册但未验证"的邮箱补发验证码
     if (!user) return json({ error: '该邮箱未注册，请先注册' }, 404);
@@ -130,21 +128,6 @@ export async function emailCode(req, ctx) {
   } catch (e) {
     return json({ error: e.message }, 500);
   }
-}
-
-export async function emailLogin(req, ctx) {
-  const body = await req.json().catch(() => ({}));
-  const email = body && body.email;
-  const code = body && body.code;
-  if (!isValidEmail(email) || !code) return json({ error: '邮箱或验证码无效' }, 400);
-  const emailNorm = email.trim().toLowerCase();
-  const ok = await verifyCode(ctx.db, emailNorm, 'login', code);
-  if (!ok) return json({ error: '验证码错误或已过期' }, 400);
-  const user = await ctx.db.get("SELECT * FROM users WHERE email = ?", [emailNorm]);
-  if (!user) return json({ error: '该邮箱未注册' }, 404);
-  await ctx.db.run("UPDATE users SET email_verified = 1 WHERE id = ?", [user.id]);
-  const token = await signJwt({ id: user.id, username: user.username, role: user.role }, ctx.jwtSecret, ctx.jwtExpiresIn);
-  return json({ token, username: user.username, role: user.role });
 }
 
 export async function verifyEmail(req, ctx) {
