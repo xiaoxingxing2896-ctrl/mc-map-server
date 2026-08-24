@@ -532,7 +532,7 @@ async function handleAuth(mode){
       const tst = window.turnstile;
       const el = document.getElementById('cf-turnstile');
       const cur = tst ? tst.getResponse() : '';
-      if (el && !cur) {
+      if (tst && el && !cur) {
         el.style.display = 'block';
         if (!el.getAttribute('data-rendered')) {
           el.setAttribute('data-rendered', '1');
