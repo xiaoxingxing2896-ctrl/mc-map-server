@@ -588,7 +588,8 @@ function getTurnstileOrPrompt(){
   if (!TURNSTILE_SITE_KEY) return '';
   const tst = window.turnstile;
   const el = document.getElementById('cf-turnstile');
-  const cur = tst ? tst.getResponse() : '';
+  let cur = '';
+  try { cur = tst ? tst.getResponse() : ''; } catch (e) { cur = ''; }
   if (cur) return cur;
   if (tst && el) {
     el.style.display = 'block';
