@@ -12,7 +12,7 @@ directory = "../public"
 [[d1_databases]]
 binding = "DB"
 database_name = "mc-map-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "e582f962-cc2e-423b-945d-2cecddde9bfb"
 
 # 瓦片存储：先执行 wrangler r2 bucket create mc-map-tiles，再用 rclone 同步瓦片
 [[r2_buckets]]
