@@ -276,6 +276,10 @@ export async function listTiles(req, ctx) {
       const match2 = f.match(/\d+_\d+_x(-?\d+)_z(-?\d+)\./);
       if (match2) {
         tiles.push({ x: parseInt(match2[1]), z: parseInt(match2[2]), url: `/tiles/${f}` });
+      } else {
+        // 兼容 uNmINeD 转出的新瓦片格式：x<X>_z<Z>.png（x 与 z 之间为下划线）
+        const m3 = f.match(/[xX](-?\d+)_z(-?\d+)\./);
+        if (m3) tiles.push({ x: parseInt(m3[1]), z: parseInt(m3[2]), url: `/tiles/${f}` });
       }
     }
   }
