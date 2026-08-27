@@ -87,7 +87,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       }
     });
     try {
-      final tiles = await ApiClient.fetchTiles(_tileWorld(world));
+      final tiles = await ApiClient.fetchTiles(world);
       AppState.I.setTiles(tiles);
       // 增量检查：删除本地已失效瓦片；缺失瓦片由视野内按需下载（不阻塞）
       unawaited(TileCache.cleanupWithIndex(world, tiles));
@@ -112,7 +112,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
   Future<void> _checkUpdate() async {
     final world = AppState.I.world;
     try {
-      final tiles = await ApiClient.fetchTiles(_tileWorld(world));
+      final tiles = await ApiClient.fetchTiles(world);
       AppState.I.setTiles(tiles);
       unawaited(TileCache.cleanupWithIndex(world, tiles));
       if (mounted) setState(() {});
@@ -409,9 +409,6 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     AppState.I.setWorld(next);
     _load(resetView: true);
   }
-
-  // 末地不显示独立地图，瓦片复用主世界（标点仍按当前维度加载）
-  String _tileWorld(String w) => w == 'end' ? 'overworld' : w;
 
   String _worldName(String w) =>
       w == 'overworld' ? '主世界' : (w == 'nether' ? '地狱' : '末地');

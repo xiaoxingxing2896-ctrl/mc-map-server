@@ -70,6 +70,16 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
     }
   }
 
+  void _markFail(ServerEntry e) {
+    e.failCount++;
+    if (e.failCount >= 3) {
+      if (!e.isFrozen) e.frozenSince = DateTime.now();
+      e.status = ServerStatus.frozen;
+    } else if (e.status != ServerStatus.frozen) {
+      if (e.status != ServerStatus.ok) e.status = ServerStatus.pending;
+    }
+  }
+
   Future<void> _pingAll() async {
     if (_pinging || _list.isEmpty) return;
     _pinging = true;
@@ -80,17 +90,24 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
   }
 
   Future<void> _pingOne(ServerEntry e) async {
-    // SRV 解析：_minecraft._tcp.<host> → 真实 地址:端口（如 av.rainplay.cn:22322）
-    // 若查到则用真实地址，避免用户填域名但端口被 SRV 重定向导致超时
     var host = e.host;
     var port = e.port;
-    try {
-      final srv = await lookupMcSrv(e.host);
-      if (srv != null) {
-        host = srv.$1;
-        port = srv.$2;
+    if (port == 0) {
+      // 未指定端口：必须靠 SRV 记录解析真实地址（不假设 25565）
+      try {
+        final srv = await lookupMcSrv(e.host);
+        if (srv != null) {
+          host = srv.$1;
+          port = srv.$2;
+        } else {
+          _markFail(e);
+          return;
+        }
+      } catch (_) {
+        _markFail(e);
+        return;
       }
-    } catch (_) {}
+    }
     try {
       final r = await pingServer(host, port);
       e.online = r.online;
@@ -101,14 +118,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
       e.frozenSince = null;
       e.status = ServerStatus.ok;
     } catch (_) {
-      e.failCount++;
-      if (e.failCount >= 3) {
-        if (!e.isFrozen) e.frozenSince = DateTime.now();
-        e.status = ServerStatus.frozen;
-      } else if (e.status != ServerStatus.frozen) {
-        // 新添加(pending)失败：保持红闪；成功过(ok)失败：不做提示保持显示
-        if (e.status != ServerStatus.ok) e.status = ServerStatus.pending;
-      }
+      _markFail(e);
     }
   }
 
@@ -128,7 +138,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
           autofocus: true,
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
-            hintText: '例：mc.example.com（默认端口 25565，可写 域名:端口）',
+            hintText: '例：mc.example.com（有 SRV 自动解析；或写 域名:端口）',
           ),
         ),
         actions: [
@@ -145,11 +155,11 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
     final raw = ctrl.text.trim();
     if (raw.isEmpty) return;
     var host = raw;
-    var port = 25565;
+    var port = 0; // 未指定端口：不假设 25565，ping 时靠 SRV 解析
     if (raw.contains(':')) {
       final parts = raw.split(':');
       host = parts[0].trim();
-      port = int.tryParse(parts[1].trim()) ?? 25565;
+      port = int.tryParse(parts[1].trim()) ?? 0;
     }
     if (host.isEmpty) return;
     // 去重
@@ -171,7 +181,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
 
   // ---------- 修改域名 ----------
   Future<void> _editServer(ServerEntry e) async {
-    final ctrl = TextEditingController(text: '${e.host}:${e.port}');
+    final ctrl = TextEditingController(text: e.port > 0 ? e.host + ':' + e.port.toString() : e.host);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -197,11 +207,11 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
     final raw = ctrl.text.trim();
     if (raw.isEmpty) return;
     var host = raw;
-    var port = 25565;
+    var port = 0; // 未指定端口：不假设 25565，ping 时靠 SRV 解析
     if (raw.contains(':')) {
       final parts = raw.split(':');
       host = parts[0].trim();
-      port = int.tryParse(parts[1].trim()) ?? 25565;
+      port = int.tryParse(parts[1].trim()) ?? 0;
     }
     if (host.isEmpty) return;
     setState(() {
@@ -427,7 +437,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
               ),
               const SizedBox(width: 7),
               Expanded(
-                child: Text('${e.host}:${e.port}',
+                child: Text(e.port > 0 ? e.host + ':' + e.port.toString() : e.host,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
