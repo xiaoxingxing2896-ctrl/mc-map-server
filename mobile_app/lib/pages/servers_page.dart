@@ -128,7 +128,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
           autofocus: true,
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
-            hintText: '例：mc.example.com 或 mc.example.com:25566',
+            hintText: '例：mc.example.com（默认端口 25565，可写 域名:端口）',
           ),
         ),
         actions: [

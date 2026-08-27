@@ -20,6 +20,7 @@ class _MarkersPageState extends State<MarkersPage> {
   String _typeFilter = 'all'; // all / fav / 类别id
   bool _loading = false;
   List<int> _favs = [];
+  String _search = '';
 
   @override
   void initState() {
@@ -70,32 +71,71 @@ class _MarkersPageState extends State<MarkersPage> {
           children: [
             const Text('标记'),
             const SizedBox(width: 8),
+            const SizedBox(width: 6),
+            // 维度切换（主世界 / 地狱 / 末地）
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(_worldName(AppState.I.world),
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: Theme.of(context).colorScheme.primary)),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: AppState.I.world,
+                  isDense: true,
+                  icon: const Icon(Icons.arrow_drop_down, size: 16),
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary),
+                  items: const [
+                    DropdownMenuItem(value: 'overworld', child: Text('主世界')),
+                    DropdownMenuItem(value: 'nether', child: Text('地狱')),
+                    DropdownMenuItem(value: 'end', child: Text('末地')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null && v != AppState.I.world) {
+                      AppState.I.setWorld(v);
+                      _ensureLoaded();
+                    }
+                  },
+                ),
+              ),
             ),
           ],
         ),
       ),
-      body: Row(
+      body: Column(
         children: [
-          // 类型栏目（黄金分割：38.2%）
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            width: _showTypes ? MediaQuery.of(context).size.width * 0.382 : 0,
-            child: _showTypes ? _buildTypeList() : null,
+          _buildSearchBar(),
+          Expanded(
+            child: Row(
+              children: [
+                // 类型栏目（黄金分割：38.2%）
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  width: _showTypes ? MediaQuery.of(context).size.width * 0.382 : 0,
+                  child: _showTypes ? _buildTypeList() : null,
+                ),
+                // 标记列表（61.8%）
+                Expanded(child: _buildMarkerList()),
+              ],
+            ),
           ),
-          // 标记列表（61.8%）
-          Expanded(child: _buildMarkerList()),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+      child: TextField(
+        onChanged: (v) => setState(() => _search = v.trim()),
+        decoration: InputDecoration(
+          hintText: '搜索标记...',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        ),
       ),
     );
   }
@@ -159,6 +199,11 @@ class _MarkersPageState extends State<MarkersPage> {
         break;
       default:
         all.removeWhere((m) => m.category != _typeFilter);
+    }
+    // 搜索过滤
+    if (_search.isNotEmpty) {
+      final q = _search.toLowerCase();
+      all.removeWhere((m) => !m.title.toLowerCase().contains(q));
     }
     // 按名称首文字首字母排序（中文按拼音）
     all.sort((a, b) => _sortKey(a.title).compareTo(_sortKey(b.title)));
