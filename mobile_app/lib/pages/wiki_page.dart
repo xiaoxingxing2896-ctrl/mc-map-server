@@ -40,7 +40,7 @@ class WikiPageState extends State<WikiPage> {
           if (mounted) setState(() {});
         },
       ))
-      ..loadRequest(Uri.parse('https://www.mcmod.cn'));
+      ..loadRequest(Uri.parse('https://m.mcmod.cn'));
   }
 
   @override
