@@ -265,6 +265,8 @@ export async function listTiles(req, ctx) {
     const world = (new URL(req.url).searchParams.get('world') || 'overworld').toLowerCase();
     const prefix = world === 'overworld' ? '' : world + '/';
     files = await ctx.bucket.listTiles(prefix);
+    // 主世界必须排除其它维度前缀（R2 list 不带前缀会返回所有对象，含 nether/、end/）
+    if (world === 'overworld') files = files.filter(o => !o.key.includes('/'));
   } catch (e) {
     return json({ error: '无法读取瓦片目录' }, 500);
   }
