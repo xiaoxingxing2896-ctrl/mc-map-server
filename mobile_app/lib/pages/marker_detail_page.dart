@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../main.dart' show HomeShellState, mapNavKey;
 
 class MarkerDetailPage extends StatelessWidget {
   final McMarker marker;
@@ -80,6 +81,36 @@ class MarkerDetailPage extends StatelessWidget {
                     style: const TextStyle(fontSize: 14, height: 1.6)),
               ),
             ],
+            const SizedBox(height: 28),
+            // 快速定位到地图（长按，带提示）
+            Tooltip(
+              message: '长按定位到地图上的位置',
+              child: GestureDetector(
+                onLongPress: () {
+                  mapNavKey.currentState?.focusAt(marker.x.toDouble(), marker.z.toDouble());
+                  HomeShellState.instance?.switchTo(2);
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.5)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('📍 定位到地图',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text('长按此按钮跳转地图并定位到该标记',
+                          style: TextStyle(fontSize: 11,
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55))),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -21,23 +21,20 @@ class _MarkersPageState extends State<MarkersPage> {
   bool _loading = false;
   List<int> _favs = [];
   String _search = '';
+  // 维度与标记列表独立于地图页：切换只影响本页
+  String _world = 'overworld';
+  List<McMarker> _markers = [];
 
   @override
   void initState() {
     super.initState();
     _reloadFavs();
     _ensureLoaded();
-    AppState.I.addListener(_onState);
   }
 
   @override
   void dispose() {
-    AppState.I.removeListener(_onState);
     super.dispose();
-  }
-
-  void _onState() {
-    if (mounted) setState(() {});
   }
 
   void _reloadFavs() {
@@ -46,14 +43,14 @@ class _MarkersPageState extends State<MarkersPage> {
   }
 
   Future<void> _ensureLoaded() async {
-    if (_loading || AppState.I.markers.isNotEmpty) return;
+    if (_loading) return;
     _loading = true;
     try {
       final token = AppState.I.user?.token;
-      final markers =
-          await ApiClient.fetchMarkers(AppState.I.world, token: token);
-      AppState.I.setMarkers(markers);
-    } catch (_) {}
+      _markers = await ApiClient.fetchMarkers(_world, token: token);
+    } catch (_) {
+      _markers = [];
+    }
     _loading = false;
     if (mounted) setState(() {});
   }
@@ -81,7 +78,7 @@ class _MarkersPageState extends State<MarkersPage> {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: AppState.I.world,
+                  value: _world,
                   isDense: true,
                   icon: const Icon(Icons.arrow_drop_down, size: 16),
                   style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary),
@@ -91,8 +88,8 @@ class _MarkersPageState extends State<MarkersPage> {
                     DropdownMenuItem(value: 'end', child: Text('末地')),
                   ],
                   onChanged: (v) {
-                    if (v != null && v != AppState.I.world) {
-                      AppState.I.setWorld(v);
+                    if (v != null && v != _world) {
+                      setState(() => _world = v);
                       _ensureLoaded();
                     }
                   },
@@ -190,7 +187,7 @@ class _MarkersPageState extends State<MarkersPage> {
   }
 
   List<McMarker> _filtered() {
-    final all = List<McMarker>.from(AppState.I.markers);
+    final all = List<McMarker>.from(_markers);
     switch (_typeFilter) {
       case 'all':
         break;

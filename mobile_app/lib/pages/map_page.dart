@@ -44,6 +44,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
   final List<String> _queue = [];
 
   Size _viewSize = Size.zero;
+  int _loadSeq = 0; // 世界切换请求序号：丢弃过期响应，防止快速切换时瓦片/标点串用
 
   // 长按标点查看卡片
   McMarker? _viewingMarker;
@@ -75,7 +76,18 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
   /// 手动刷新：重置视图到 (0,0)
   void refresh() => _load(resetView: true);
 
+  /// 定位到指定世界坐标（标记详情页长按定位用）
+  void focusAt(double x, double z) {
+    setState(() {
+      _cx = x;
+      _cz = z;
+      _scale = 1.0;
+    });
+    _prefetchVisible();
+  }
+
   Future<void> _load({required bool resetView}) async {
+    final seq = ++_loadSeq; // 本次请求序号
     final world = AppState.I.world;
     setState(() {
       _loading = true;
@@ -88,16 +100,18 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     });
     try {
       final tiles = await ApiClient.fetchTiles(world);
+      if (seq != _loadSeq || !mounted) return; // 已被更新的切换覆盖，丢弃
       AppState.I.setTiles(tiles);
       // 增量检查：删除本地已失效瓦片；缺失瓦片由视野内按需下载（不阻塞）
       unawaited(TileCache.cleanupWithIndex(world, tiles));
       // 标记
       final token = AppState.I.user?.token;
       final markers = await ApiClient.fetchMarkers(world, token: token);
+      if (seq != _loadSeq || !mounted) return;
       AppState.I.setMarkers(markers);
       if (mounted) setState(() => _loading = false);
     } catch (e) {
-      if (mounted) {
+      if (mounted && seq == _loadSeq) {
         setState(() {
           _loading = false;
           _error = e.toString();
@@ -105,7 +119,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       }
     }
     // 预取视野瓦片到内存
-    _prefetchVisible();
+    if (seq == _loadSeq) _prefetchVisible();
   }
 
   /// 检查瓦片更新（不重置视图）：重拉索引 + 增量下载

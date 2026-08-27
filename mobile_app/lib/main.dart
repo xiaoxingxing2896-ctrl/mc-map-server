@@ -14,6 +14,8 @@ import 'theme.dart';
 
 // 全局 Wiki 页 key：供「我的」收藏/历史跳转打开
 final GlobalKey<WikiPageState> wikiNavKey = GlobalKey<WikiPageState>();
+// 全局地图页 key：供标记详情页长按定位到地图
+final GlobalKey<MapPageState> mapNavKey = GlobalKey<MapPageState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +62,7 @@ class HomeShellState extends State<HomeShell> {
   static HomeShellState? instance;
 
   int _index = 2; // 默认进入地图页（居中突出项）
-  final GlobalKey<MapPageState> _mapKey = GlobalKey<MapPageState>();
+  // 地图页 key 使用全局 mapNavKey，供详情页长按定位调用
 
   @override
   void initState() {
@@ -86,7 +88,7 @@ class HomeShellState extends State<HomeShell> {
     setState(() => _index = i);
     // 切到地图 → 增量检查瓦片更新（不重置视图位置）
     if (i == 2) {
-      _mapKey.currentState?.autoCheck();
+      mapNavKey.currentState?.autoCheck();
     }
   }
 
@@ -99,7 +101,7 @@ class HomeShellState extends State<HomeShell> {
         children: [
           const ServersPage(),
           WikiPage(key: wikiNavKey),
-          MapPage(key: _mapKey),
+          MapPage(key: mapNavKey),
           const MarkersPage(),
           const ProfilePage(),
         ],

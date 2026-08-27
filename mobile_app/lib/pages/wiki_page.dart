@@ -1,4 +1,4 @@
-// Wiki 页：接入 MC百科（mcmod.cn）WebView，可搜索
+// Wiki 页：接入 Minecraft Wiki（zh.minecraft.wiki）WebView，可搜索
 // - 登录用户点 📸 → 将当前页面地址记录到收藏（未登录无反应）
 // - 浏览历史：记录单次进入 wiki 的最后页面地址（退出/切页时写入，最多 50）
 import 'package:flutter/material.dart';
@@ -40,7 +40,7 @@ class WikiPageState extends State<WikiPage> {
           if (mounted) setState(() {});
         },
       ))
-      ..loadRequest(Uri.parse('https://m.mcmod.cn'));
+      ..loadRequest(Uri.parse('https://zh.minecraft.wiki/'));
   }
 
   @override
@@ -67,7 +67,7 @@ class WikiPageState extends State<WikiPage> {
     final q = _searchCtrl.text.trim();
     if (q.isEmpty) return;
     _controller.loadRequest(Uri.parse(
-        'https://www.mcmod.cn/s?key=${Uri.encodeQueryComponent(q)}'));
+        'https://zh.minecraft.wiki/index.php?search=${Uri.encodeQueryComponent(q)}'));
   }
 
   void _captureFavorite() {
