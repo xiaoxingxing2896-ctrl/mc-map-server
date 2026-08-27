@@ -269,14 +269,12 @@ class TileCache {
         .toList();
   }
 
-  /// 增量更新：远端索引为权威 —— 缺失的下载，远端已删除的本地删除
-  /// 返回下载数量
-  static Future<int> syncWithIndex(
+  /// 增量检查：远端索引为权威，删除本地已失效的瓦片文件
+  /// 下载由地图页按需加载（视野内惰性下载，3 并发），避免全量预下载数百 MB
+  static Future<void> cleanupWithIndex(
       String world, List<TileIndex> remote) async {
     final keys = remote.map((t) => t.key).toSet();
     final local = await localKeys(world);
-    var downloaded = 0;
-    // 删除远端不存在的
     for (final k in local) {
       if (!keys.contains(k)) {
         try {
@@ -285,15 +283,5 @@ class TileCache {
         } catch (_) {}
       }
     }
-    // 下载缺失
-    for (final t in remote) {
-      if (await has(world, t.key)) continue;
-      try {
-        final bytes = await ApiClient.fetchTileBytes(t.url);
-        await save(world, t.key, bytes);
-        downloaded++;
-      } catch (_) {}
-    }
-    return downloaded;
   }
 }

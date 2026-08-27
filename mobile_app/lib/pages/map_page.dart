@@ -89,16 +89,8 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     try {
       final tiles = await ApiClient.fetchTiles(world);
       AppState.I.setTiles(tiles);
-      // 增量更新：下载缺失瓦片（后台进行，不阻塞渲染）
-      unawaited(TileCache.syncWithIndex(world, tiles).then((n) {
-        if (n > 0 && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('已更新 $n 张地图瓦片'),
-            duration: const Duration(seconds: 2),
-          ));
-          setState(() {});
-        }
-      }));
+      // 增量检查：删除本地已失效瓦片；缺失瓦片由视野内按需下载（不阻塞）
+      unawaited(TileCache.cleanupWithIndex(world, tiles));
       // 标记
       final token = AppState.I.user?.token;
       final markers = await ApiClient.fetchMarkers(world, token: token);
@@ -122,7 +114,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     try {
       final tiles = await ApiClient.fetchTiles(world);
       AppState.I.setTiles(tiles);
-      unawaited(TileCache.syncWithIndex(world, tiles));
+      unawaited(TileCache.cleanupWithIndex(world, tiles));
       if (mounted) setState(() {});
     } catch (_) {}
   }
