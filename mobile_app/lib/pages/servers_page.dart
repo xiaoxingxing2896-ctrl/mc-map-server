@@ -83,7 +83,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
     try {
       final r = await pingServer(e.host, e.port);
       e.online = r.online;
-      e.maxPlayers = r.maxPlayers;
+      e.maxPlayers = r.max;
       e.players = r.players;
       e.latencyMs = r.latencyMs;
       e.failCount = 0;
@@ -334,7 +334,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
                   color: border ?? Colors.transparent, width: 1.6),
               boxShadow: _glow(e),
             ),
-            child: _buildCardBody(e),
+            child: _buildCardBody(e, index),
           ),
         ),
       ),
@@ -374,7 +374,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
     }
   }
 
-  Widget _buildCardBody(ServerEntry e) {
+  Widget _buildCardBody(ServerEntry e, int index) {
     final muted = Theme.of(context).colorScheme.onSurface.withOpacity(0.55);
     final String statusText;
     final Color statusColor;
@@ -518,7 +518,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
                 child: IgnorePointer(
                   child: Transform.scale(
                     scale: 1.03,
-                    child: _buildCard(e),
+                    child: _buildCard(e, 0),
                   ),
                 ),
               ),
@@ -545,7 +545,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
                               () => _fav(e)),
                           _divider(),
                           _menuItem(Icons.edit_outlined, '修改域名',
-                              () => _edit(e), e),
+                              () => _edit(e)),
                           _divider(),
                           _menuItem(Icons.delete_outline, '删除',
                               () => _del(e),
@@ -579,7 +579,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
       Divider(height: 1, thickness: 0.5, color: Theme.of(context).dividerColor);
 
   Widget _menuItem(
-      IconData icon, String label, VoidCallback onTap, ServerEntry e,
+      IconData icon, String label, VoidCallback onTap,
       {bool danger = false}) {
     final color = danger
         ? Theme.of(context).colorScheme.error

@@ -5,6 +5,7 @@
 // - 登录用户长按标点 → 屏幕中央大悬浮卡片（仅查看，✕ 关闭）
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -255,7 +256,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       final bytes = await ApiClient.fetchTileBytes(t.url);
       await TileCache.save(world, key, bytes);
       if (mounted) setState(() {
-        _mem[key] = bytes;
+        _mem[key] = Uint8List.fromList(bytes);
         if (_mem.length > _memLimit) _mem.clear();
       });
     } catch (_) {

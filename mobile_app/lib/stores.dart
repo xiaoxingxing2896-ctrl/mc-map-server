@@ -254,7 +254,7 @@ class TileCache {
       File(await filePath(world, key)).exists();
 
   static Future<void> save(String world, String key, List<int> bytes) async {
-    final dir = Directory(worldDir(world));
+    final dir = Directory(await worldDir(world));
     if (!await dir.exists()) await dir.create(recursive: true);
     await File(await filePath(world, key)).writeAsBytes(bytes, flush: true);
   }
