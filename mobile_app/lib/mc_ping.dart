@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:http/http.dart' as http;
 
 class McPingResult {
   final int online;
@@ -181,4 +182,30 @@ String extractMotd(dynamic desc) {
     }
   }
   return '';
+}
+/// 查询 Minecraft SRV 记录：_minecraft._tcp.<host>（Cloudflare DoH）
+/// 返回真实 (host, port)；无记录返回 null
+Future<(String, int)?> lookupMcSrv(String host) async {
+  try {
+    final uri = Uri.parse('https://cloudflare-dns.com/dns-query')
+        .replace(queryParameters: {'name': '_minecraft._tcp.$host', 'type': 'SRV'});
+    final r = await http
+        .get(uri, headers: {'accept': 'application/dns-json'})
+        .timeout(const Duration(seconds: 5));
+    if (r.statusCode != 200) return null;
+    final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    final ans = j['Answer'] as List? ?? const [];
+    for (final a in ans) {
+      final data = (a as Map)['data']?.toString() ?? '';
+      final parts = data.trim().split(RegExp(r'\s+'));
+      if (parts.length >= 4) {
+        final port = int.tryParse(parts[2]);
+        final target = parts[3];
+        if (port != null && target.isNotEmpty && target != '.') {
+          return (target.endsWith('.') ? target.substring(0, target.length - 1) : target, port);
+        }
+      }
+    }
+  } catch (_) {}
+  return null;
 }

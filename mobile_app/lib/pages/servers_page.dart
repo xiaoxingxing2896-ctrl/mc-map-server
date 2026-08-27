@@ -80,8 +80,19 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
   }
 
   Future<void> _pingOne(ServerEntry e) async {
+    // SRV 解析：_minecraft._tcp.<host> → 真实 地址:端口（如 av.rainplay.cn:22322）
+    // 若查到则用真实地址，避免用户填域名但端口被 SRV 重定向导致超时
+    var host = e.host;
+    var port = e.port;
     try {
-      final r = await pingServer(e.host, e.port);
+      final srv = await lookupMcSrv(e.host);
+      if (srv != null) {
+        host = srv.$1;
+        port = srv.$2;
+      }
+    } catch (_) {}
+    try {
+      final r = await pingServer(host, port);
       e.online = r.online;
       e.maxPlayers = r.max;
       e.players = r.players;
@@ -398,8 +409,9 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
         : '';
 
     return Padding(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -512,13 +524,15 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
                 ),
               ),
             ),
-            // 长按卡片上浮预览（居中偏上）
+            // 长按卡片上浮预览：紧凑尺寸，避免过大遮挡
             Center(
               child: FractionallySizedBox(
-                widthFactor: 0.88,
-                child: IgnorePointer(
-                  child: Transform.scale(
-                    scale: 1.03,
+                widthFactor: 0.72,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.5,
+                  ),
+                  child: IgnorePointer(
                     child: _buildCard(e, 0, overlay: true),
                   ),
                 ),
