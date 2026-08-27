@@ -102,13 +102,16 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
       } else if (port == 0) {
         port = 25565; // 无 SRV 且未指定端口：按默认端口尝试
       }
-    } catch (_) {
+    } catch (err) {
       if (port == 0) port = 25565;
     }
+    // 调试：记录解析结果
+    await AuthStore.prefs.setString('srv_debug',
+        DateTime.now().toString() + ' host=' + host + ' port=' + port.toString());
     try {
       McPingResult r;
       try {
-        r = await pingServer(host, port);
+        r = await pingServer(host, port).timeout(const Duration(seconds: 15));
       } catch (_) {
         // 本地 status ping 失败：尝试 mcsrvstat.us 公共 API 兜底（海外节点）
         final alt = await queryViaMcsrvstat(e.host, e.port);
@@ -118,6 +121,9 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
         }
         r = alt;
       }
+      await AuthStore.prefs.setString('srv_debug',
+          DateTime.now().toString() + ' OK host=' + host + ' port=' + port.toString() +
+          ' online=' + r.online.toString() + ' max=' + r.max.toString() + ' latency=' + r.latencyMs.toString());
       e.online = r.online;
       e.maxPlayers = r.max;
       e.players = r.players;
@@ -125,7 +131,9 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
       e.failCount = 0;
       e.frozenSince = null;
       e.status = ServerStatus.ok;
-    } catch (_) {
+    } catch (err) {
+      await AuthStore.prefs.setString('srv_debug',
+          DateTime.now().toString() + ' FAIL host=' + host + ' port=' + port.toString() + ' err=' + err.toString());
       _markFail(e);
     }
   }

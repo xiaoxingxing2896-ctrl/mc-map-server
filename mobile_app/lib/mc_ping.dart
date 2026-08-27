@@ -24,7 +24,10 @@ class McPingResult {
 /// 连接超时 5s，读取超时 6s；失败抛异常
 Future<McPingResult> pingServer(String host, int port) async {
   final sw = Stopwatch()..start();
-  final socket = await Socket.connect(host, port, timeout: const Duration(seconds: 8));
+  // 先解析 IP 再连接：避免 Android 上 Socket.connect 的 DNS 解析挂起
+  final address = await InternetAddress.lookup(host).timeout(const Duration(seconds: 5));
+  final socket = await Socket.connect(address.first, port,
+      timeout: const Duration(seconds: 8));
   try {
     // 1) Handshake: 0x00, protocol=47(1.8+), host, port, nextState=1
     final hs = BytesBuilder();

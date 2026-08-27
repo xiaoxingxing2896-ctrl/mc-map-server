@@ -242,6 +242,32 @@ class MarkerCache {
   }
 }
 
+// ============ 瓦片索引缓存（网络失败时仍可显示磁盘瓦片） ============
+class TileIndexCache {
+  TileIndexCache._();
+
+  static Future<List<TileIndex>> load(String world) async {
+    final raw = AuthStore.prefs.getString('tiles_idx_' + world) ?? '';
+    if (raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list.map((e) => TileIndex.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> save(String world, List<TileIndex> list) async {
+    try {
+      await AuthStore.prefs.setString(
+          'tiles_idx_' + world,
+          jsonEncode(list
+              .map((e) => {'x': e.x, 'z': e.z, 'url': e.url})
+              .toList()));
+    } catch (_) {}
+  }
+}
+
 // ============ 瓦片本地缓存 + 增量更新 ============
 class TileCache {
   TileCache._();

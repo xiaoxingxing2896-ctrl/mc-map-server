@@ -87,7 +87,7 @@ class MarkerDetailPage extends StatelessWidget {
             GestureDetector(
               onLongPress: () {
                 HapticFeedback.mediumImpact(); // 震动反馈
-                mapNavKey.currentState?.focusAt(marker.x.toDouble(), marker.z.toDouble());
+                mapNavKey.currentState?.focusWorldAt(marker.world, marker.x.toDouble(), marker.z.toDouble());
                 HomeShellState.instance?.switchTo(2);
                 ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('已跳转到地图并定位到该标记')));

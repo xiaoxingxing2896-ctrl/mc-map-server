@@ -86,6 +86,18 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     _prefetchVisible();
   }
 
+  /// 定位到标记：若地图当前维度与标记维度不同，先自动切换再定位
+  void focusWorldAt(String world, double x, double z) {
+    if (world != AppState.I.world) {
+      AppState.I.setWorld(world);
+      _load(resetView: false).then((_) {
+        focusAt(x, z);
+      });
+    } else {
+      focusAt(x, z);
+    }
+  }
+
   Future<void> _load({required bool resetView}) async {
     final seq = ++_loadSeq; // 本次请求序号
     final world = AppState.I.world;
@@ -102,6 +114,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       final tiles = await ApiClient.fetchTiles(world);
       if (seq != _loadSeq || !mounted) return; // 已被更新的切换覆盖，丢弃
       AppState.I.setTiles(tiles);
+      await TileIndexCache.save(world, tiles);
       // 增量检查：删除本地已失效瓦片；缺失瓦片由视野内按需下载（不阻塞）
       unawaited(TileCache.cleanupWithIndex(world, tiles));
       // 标记
@@ -113,8 +126,10 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       if (mounted) setState(() => _loading = false);
     } catch (e) {
       if (mounted && seq == _loadSeq) {
-        // 网络失败：有缓存则用缓存继续显示，否则给友好提示（不显示超时异常原文）
+        // 网络失败：用本地缓存继续显示（索引+标点），不显示错误打断使用
+        final idx = await TileIndexCache.load(world);
         final cachedMarkers = await MarkerCache.load(world);
+        if (idx.isNotEmpty) AppState.I.setTiles(idx);
         if (cachedMarkers.isNotEmpty) AppState.I.setMarkers(cachedMarkers);
         setState(() {
           _loading = false;
@@ -128,10 +143,13 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
 
   /// 检查瓦片更新（不重置视图）：重拉索引 + 增量下载
   Future<void> _checkUpdate() async {
+    final seq = ++_loadSeq; // 与 _load 共用序号：过期响应一律丢弃，防串图
     final world = AppState.I.world;
     try {
       final tiles = await ApiClient.fetchTiles(world);
+      if (seq != _loadSeq || !mounted) return;
       AppState.I.setTiles(tiles);
+      await TileIndexCache.save(world, tiles);
       unawaited(TileCache.cleanupWithIndex(world, tiles));
       if (mounted) setState(() {});
     } catch (_) {}
