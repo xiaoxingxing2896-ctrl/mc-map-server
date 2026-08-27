@@ -109,12 +109,16 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       final markers = await ApiClient.fetchMarkers(world, token: token);
       if (seq != _loadSeq || !mounted) return;
       AppState.I.setMarkers(markers);
+      await MarkerCache.save(world, markers);
       if (mounted) setState(() => _loading = false);
     } catch (e) {
       if (mounted && seq == _loadSeq) {
+        // 网络失败：有缓存则用缓存继续显示，否则给友好提示（不显示超时异常原文）
+        final cachedMarkers = await MarkerCache.load(world);
+        if (cachedMarkers.isNotEmpty) AppState.I.setMarkers(cachedMarkers);
         setState(() {
           _loading = false;
-          _error = e.toString();
+          _error = AppState.I.tiles.isEmpty ? '地图加载失败，请检查网络后重试' : null;
         });
       }
     }

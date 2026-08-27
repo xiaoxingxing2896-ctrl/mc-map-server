@@ -44,12 +44,18 @@ class _MarkersPageState extends State<MarkersPage> {
 
   Future<void> _ensureLoaded() async {
     if (_loading) return;
+    // 先显示本地缓存，避免网络慢/超时时出现"暂无标记"
+    if (_markers.isEmpty) {
+      final cached = await MarkerCache.load(_world);
+      if (cached.isNotEmpty && mounted) setState(() => _markers = cached);
+    }
     _loading = true;
     try {
       final token = AppState.I.user?.token;
       _markers = await ApiClient.fetchMarkers(_world, token: token);
+      await MarkerCache.save(_world, _markers); // 成功后写缓存
     } catch (_) {
-      _markers = [];
+      // 网络失败：保留缓存显示，不置空
     }
     _loading = false;
     if (mounted) setState(() {});

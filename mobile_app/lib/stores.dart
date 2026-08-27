@@ -160,20 +160,6 @@ class WikiStore {
   static List<WikiRecord> loadHistory() =>
       _decode(AuthStore.prefs.getString('wiki_hist') ?? '[]', false);
 
-  static Future<void> addFavorite(String url, String title) async {
-    var list = loadFavorites();
-    list.removeWhere((r) => r.url == url);
-    list.insert(0, WikiRecord(url: url, title: title, time: DateTime.now(), isFavorite: true));
-    if (list.length > max) list.removeRange(max, list.length);
-    await AuthStore.prefs.setString('wiki_fav', _encode(list));
-  }
-
-  static Future<void> removeFavorite(String url) async {
-    var list = loadFavorites();
-    list.removeWhere((r) => r.url == url);
-    await AuthStore.prefs.setString('wiki_fav', _encode(list));
-  }
-
   static Future<void> addHistory(String url, String title) async {
     if (url.isEmpty) return;
     var list = loadHistory();
@@ -228,6 +214,31 @@ class ServersStore {
   static Future<void> save(List<ServerEntry> list) async {
     await AuthStore.prefs.setString(
         _kList, jsonEncode(list.map((e) => e.toJson()).toList()));
+  }
+}
+
+// ============ 标记本地缓存（按维度，先显示缓存再后台刷新） ============
+class MarkerCache {
+  MarkerCache._();
+
+  static Future<List<McMarker>> load(String world) async {
+    final raw = AuthStore.prefs.getString('markers_cache_' + world) ?? '';
+    if (raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list
+          .map((e) => McMarker.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> save(String world, List<McMarker> list) async {
+    try {
+      await AuthStore.prefs.setString(
+          'markers_cache_' + world, jsonEncode(list.map((e) => e.toJson()).toList()));
+    } catch (_) {}
   }
 }
 

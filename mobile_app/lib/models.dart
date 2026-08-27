@@ -46,6 +46,19 @@ class McMarker {
         isPublic: (j['is_public'] ?? 1) as int,
         world: (j['world'] ?? 'overworld') as String,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'description': description,
+        'x': x,
+        'z': z,
+        'category': category,
+        'icon': icon,
+        'created_by': createdBy,
+        'is_public': isPublic,
+        'world': world,
+      };
 }
 
 // 瓦片索引（/api/tiles 返回 {x, z, url}）

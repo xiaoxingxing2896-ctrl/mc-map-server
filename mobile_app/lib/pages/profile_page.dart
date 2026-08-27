@@ -202,21 +202,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         const SizedBox(height: 12),
-        // 收藏
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.star, color: Colors.amber),
-            title: const Text('收藏'),
-            subtitle: Text('${WikiStore.loadFavorites().length} 条 Wiki 收藏',
-                style: TextStyle(fontSize: 12, color: muted)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const _RecordListPage(isFavorite: true)));
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
         // 历史记录
         Card(
           child: ListTile(
@@ -227,7 +212,7 @@ class _ProfilePageState extends State<ProfilePage> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const _RecordListPage(isFavorite: false)));
+                  builder: (_) => const _RecordListPage()));
             },
           ),
         ),
@@ -246,10 +231,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
-// ============ 收藏 / 历史列表页（新到旧，最多 50，长按复制，点击跳 Wiki） ============
+// ============ 历史记录页（新到旧，最多 50，长按复制，点击跳 Wiki） ============
 class _RecordListPage extends StatefulWidget {
-  final bool isFavorite;
-  const _RecordListPage({required this.isFavorite});
+  const _RecordListPage();
 
   @override
   State<_RecordListPage> createState() => _RecordListPageState();
@@ -261,9 +245,7 @@ class _RecordListPageState extends State<_RecordListPage> {
   @override
   void initState() {
     super.initState();
-    _items = widget.isFavorite
-        ? WikiStore.loadFavorites()
-        : WikiStore.loadHistory();
+    _items = WikiStore.loadHistory();
   }
 
   @override
@@ -275,12 +257,11 @@ class _RecordListPageState extends State<_RecordListPage> {
           tooltip: '返回',
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(widget.isFavorite ? '收藏' : '历史记录'),
+        title: const Text('历史记录'),
       ),
       body: _items.isEmpty
-          ? Center(
-              child: Text(widget.isFavorite ? '暂无收藏' : '暂无浏览记录',
-                  style: const TextStyle(fontSize: 13)))
+          ? const Center(
+              child: Text('暂无浏览记录', style: TextStyle(fontSize: 13)))
           : ListView.builder(
               padding: const EdgeInsets.all(10),
               itemCount: _items.length,
@@ -289,9 +270,7 @@ class _RecordListPageState extends State<_RecordListPage> {
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
-                    leading: Icon(
-                        widget.isFavorite ? Icons.star : Icons.history,
-                        size: 20),
+                    leading: const Icon(Icons.history, size: 20),
                     title: Text(r.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

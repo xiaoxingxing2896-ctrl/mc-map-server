@@ -186,26 +186,38 @@ String extractMotd(dynamic desc) {
 /// 查询 Minecraft SRV 记录：_minecraft._tcp.<host>（Cloudflare DoH）
 /// 返回真实 (host, port)；无记录返回 null
 Future<(String, int)?> lookupMcSrv(String host) async {
-  try {
-    final uri = Uri.parse('https://cloudflare-dns.com/dns-query')
-        .replace(queryParameters: {'name': '_minecraft._tcp.$host', 'type': 'SRV'});
-    final r = await http
-        .get(uri, headers: {'accept': 'application/dns-json'})
-        .timeout(const Duration(seconds: 5));
-    if (r.statusCode != 200) return null;
-    final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
-    final ans = j['Answer'] as List? ?? const [];
-    for (final a in ans) {
-      final data = (a as Map)['data']?.toString() ?? '';
-      final parts = data.trim().split(RegExp(r'\s+'));
-      if (parts.length >= 4) {
-        final port = int.tryParse(parts[2]);
-        final target = parts[3];
-        if (port != null && target.isNotEmpty && target != '.') {
-          return (target.endsWith('.') ? target.substring(0, target.length - 1) : target, port);
+  // Google DNS 优先（标准 JSON，稳定），Cloudflare DoH 备用
+  final apis = [
+    'https://dns.google/resolve',
+    'https://cloudflare-dns.com/dns-query',
+  ];
+  for (final api in apis) {
+    try {
+      final uri = Uri.parse(api).replace(
+          queryParameters: {'name': '_minecraft._tcp.$host', 'type': 'SRV'});
+      final r = await http
+          .get(uri,
+              headers: api.contains('dns.google')
+                  ? null
+                  : {'accept': 'application/dns-json'})
+          .timeout(const Duration(seconds: 5));
+      if (r.statusCode != 200) continue;
+      final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+      final ans = j['Answer'] as List? ?? const [];
+      for (final a in ans) {
+        final data = (a as Map)['data']?.toString() ?? '';
+        final parts = data.trim().split(RegExp(r'\s+'));
+        if (parts.length >= 4) {
+          final port = int.tryParse(parts[2]);
+          final target = parts[3];
+          if (port != null && target.isNotEmpty && target != '.') {
+            return (target.endsWith('.')
+                ? target.substring(0, target.length - 1)
+                : target, port);
+          }
         }
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
   return null;
 }

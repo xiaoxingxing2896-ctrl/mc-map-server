@@ -17,6 +17,8 @@ class WikiPageState extends State<WikiPage> {
   late final WebViewController _controller;
   String? _lastUrl;
   String _lastTitle = '';
+  int _progress = 0; // webview 加载进度 0-100
+  bool _refreshing = false; // 下拉刷新状态
 
 
   @override
@@ -26,6 +28,14 @@ class WikiPageState extends State<WikiPage> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFFF7F7F5))
       ..setNavigationDelegate(NavigationDelegate(
+        onProgress: (p) {
+          _progress = p;
+          if (p >= 100) {
+            _refreshing = false;
+            _progress = 0;
+          }
+          if (mounted) setState(() {});
+        },
         onPageStarted: (url) {
           // 离开上一页：把最后停留地址记入历史
           if (_lastUrl != null && _lastUrl != url) {
@@ -71,15 +81,7 @@ class WikiPageState extends State<WikiPage> {
         'https://zh.minecraft.wiki/index.php?search=${Uri.encodeQueryComponent(q)}'));
   }
 
-  void _captureFavorite() {
-    final user = AppState.I.user;
-    if (user == null) return; // 未登录截图不作反应
-    final u = _lastUrl;
-    if (u == null || u.isEmpty) return;
-    WikiStore.addFavorite(u, _lastTitle.isEmpty ? u : _lastTitle);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('已收藏当前页面到「我的」')));
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -106,17 +108,7 @@ class WikiPageState extends State<WikiPage> {
             ),
           ),
         ),
-        actions: [
-          // 截屏收藏：仅登录用户有效
-          IconButton(
-            icon: Icon(Icons.photo_camera_outlined,
-                color: user == null
-                    ? Theme.of(context).disabledColor
-                    : Theme.of(context).colorScheme.primary),
-            tooltip: user == null ? '登录后可用' : '收藏当前页面',
-            onPressed: _captureFavorite,
-          ),
-        ],
+        actions: const [],
       ),
       body: PopScope(
         canPop: false,
@@ -133,7 +125,54 @@ class WikiPageState extends State<WikiPage> {
             SystemNavigator.pop();
           }
         },
-        child: WebViewWidget(controller: _controller),
+        child: Stack(
+          children: [
+            WebViewWidget(controller: _controller),
+            // 加载进度条
+            if (_progress > 0 && _progress < 100)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(
+                  value: _progress / 100,
+                  minHeight: 2,
+                ),
+              ),
+            // 顶部下拉刷新区域（36px 透明，下拉触发刷新）
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 36,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onVerticalDragUpdate: (d) {
+                  if (d.delta.dy > 8 && !_refreshing) {
+                    _refreshing = true;
+                    _controller.reload();
+                    setState(() {});
+                  }
+                },
+                child: _refreshing
+                    ? Container(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.08),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      )
+                    : Container(color: Colors.transparent),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
