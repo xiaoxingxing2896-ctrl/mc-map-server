@@ -26,8 +26,9 @@ Future<void> main() async {
   if (cached != null) {
     // 后台校验 token：若已失效（如服务端密钥轮换）自动清除
     unawaited(() async {
-      final ok = await ApiClient.validateToken(cached.token);
-      if (!ok) {
+      // 仅当服务端明确判定 token 无效（401/403）才清除；网络抖动不清除
+      final status = await ApiClient.validateTokenStatus(cached.token);
+      if (status == 401 || status == 403) {
         await AuthStore.clear();
         AppState.I.setUser(null);
       }

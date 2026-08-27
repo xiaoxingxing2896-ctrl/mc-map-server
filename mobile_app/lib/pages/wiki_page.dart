@@ -2,6 +2,7 @@
 // - 登录用户点 📸 → 将当前页面地址记录到收藏（未登录无反应）
 // - 浏览历史：记录单次进入 wiki 的最后页面地址（退出/切页时写入，最多 50）
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../stores.dart';
 
@@ -117,7 +118,23 @@ class WikiPageState extends State<WikiPage> {
           ),
         ],
       ),
-      body: WebViewWidget(controller: _controller),
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          // 二级页面返回：WebView 有历史则后退；无历史则正常退出
+          try {
+            if (await _controller.canGoBack()) {
+              _controller.goBack();
+            } else {
+              SystemNavigator.pop();
+            }
+          } catch (_) {
+            SystemNavigator.pop();
+          }
+        },
+        child: WebViewWidget(controller: _controller),
+      ),
     );
   }
 }

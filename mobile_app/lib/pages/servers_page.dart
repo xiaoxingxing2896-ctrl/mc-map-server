@@ -92,21 +92,18 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
   Future<void> _pingOne(ServerEntry e) async {
     var host = e.host;
     var port = e.port;
-    if (port == 0) {
-      // 未指定端口：必须靠 SRV 记录解析真实地址（不假设 25565）
-      try {
-        final srv = await lookupMcSrv(e.host);
-        if (srv != null) {
-          host = srv.$1;
-          port = srv.$2;
-        } else {
-          _markFail(e);
-          return;
-        }
-      } catch (_) {
-        _markFail(e);
-        return;
+    // 总是先查 SRV 记录（_minecraft._tcp.<host>）：
+    // 查到 → 用 SRV 真实地址；查不到 → 用配置端口（0 时兜底 25565）
+    try {
+      final srv = await lookupMcSrv(e.host);
+      if (srv != null) {
+        host = srv.$1;
+        port = srv.$2;
+      } else if (port == 0) {
+        port = 25565; // 无 SRV 且未指定端口：按默认端口尝试
       }
+    } catch (_) {
+      if (port == 0) port = 25565;
     }
     try {
       final r = await pingServer(host, port);

@@ -48,16 +48,16 @@ class ApiClient {
     );
   }
 
-  // 校验 token 是否仍有效
-  static Future<bool> validateToken(String token) async {
+  // 校验 token：返回状态码；网络错误返回 null（表示不确定，调用方不应清除登录态）
+  static Future<int?> validateTokenStatus(String token) async {
     try {
       final r = await http.get(
         Uri.parse('$base/api/me'),
         headers: {'Authorization': 'Bearer $token'},
       ).timeout(_timeout);
-      return r.statusCode == 200;
+      return r.statusCode;
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
