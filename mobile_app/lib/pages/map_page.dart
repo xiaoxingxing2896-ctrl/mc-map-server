@@ -208,24 +208,29 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
   }
 
   void _ensureTile(String world, String key) {
-    if (_mem.containsKey(key) || _pending[key] == true) return;
-    _pending[key] = true;
-    _queue.add(key);
+    final mk = world + '/' + key; // 内存缓存 key 含世界前缀，避免跨维度同名瓦片串用
+    if (_mem.containsKey(mk) || _pending[mk] == true) return;
+    _pending[mk] = true;
+    _queue.add(mk);
     _pump();
   }
 
   void _pump() {
     while (_inflight < _maxConcurrent && _queue.isNotEmpty) {
-      final key = _queue.removeAt(0);
+      final mk = _queue.removeAt(0);
       _inflight++;
-      _loadTile(AppState.I.world, key).whenComplete(() {
+      _loadTile(mk).whenComplete(() {
         _inflight--;
         _pump();
       });
     }
   }
 
-  Future<void> _loadTile(String world, String key) async {
+  Future<void> _loadTile(String mk) async {
+    final slash = mk.indexOf('/');
+    if (slash <= 0) return;
+    final world = mk.substring(0, slash);
+    final key = mk.substring(slash + 1);
     try {
       // 磁盘缓存
       final hasCache = await TileCache.has(world, key);
@@ -233,7 +238,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
         final f = await _readFileBytes(world, key);
         if (f != null) {
           if (mounted) setState(() {
-            _mem[key] = f;
+            _mem[mk] = f;
             if (_mem.length > _memLimit) _mem.clear();
           });
           return;
@@ -242,19 +247,19 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       // 网络下载（索引里的 url）
       TileIndex? t;
       for (final e in AppState.I.tiles) {
-        if (e.key == key) { t = e; break; }
+        if (e.key == key && world == AppState.I.world) { t = e; break; }
       }
       if (t == null) return;
       final bytes = await ApiClient.fetchTileBytes(t.url);
       await TileCache.save(world, key, bytes);
       if (mounted) setState(() {
-        _mem[key] = Uint8List.fromList(bytes);
+        _mem[mk] = Uint8List.fromList(bytes);
         if (_mem.length > _memLimit) _mem.clear();
       });
     } catch (_) {
       // 失败静默，下次重试
     } finally {
-      _pending[key] = false;
+      _pending[mk] = false;
     }
   }
 
@@ -319,7 +324,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-            // 左上角：刷新 + 世界切换
+                        // 左上角：刷新 + 三个维度按钮（主世界 / 地狱 / 末地）
             Positioned(
               left: 10,
               top: MediaQuery.of(context).padding.top + 10,
@@ -327,8 +332,11 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
                 children: [
                   _roundButton(Icons.refresh, '刷新（回到 0,0）', refresh),
                   const SizedBox(width: 8),
-                  _roundButton(Icons.public, '世界：${_worldName(AppState.I.world)}${AppState.I.world == 'end' ? '（主世界底图）' : ''}，点击切换',
-                      _cycleWorld),
+                  _worldButton('overworld', '主世界'),
+                  const SizedBox(width: 4),
+                  _worldButton('nether', '地狱'),
+                  const SizedBox(width: 4),
+                  _worldButton('end', '末地'),
                 ],
               ),
             ),
@@ -384,6 +392,32 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     });
   }
 
+  Widget _worldButton(String w, String label) {
+    final sel = AppState.I.world == w;
+    final green = Theme.of(context).brightness == Brightness.dark
+        ? McColors.darkGreen
+        : McColors.lightGreen;
+    return GestureDetector(
+      onTap: () {
+        if (w == AppState.I.world) return;
+        AppState.I.setWorld(w);
+        _load(resetView: true);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: sel ? green : Colors.black.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: sel ? Colors.white : Colors.white70,
+                fontSize: 11,
+                fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
+      ),
+    );
+  }
+
   Widget _roundButton(IconData icon, String tooltip, VoidCallback onTap) {
     return Tooltip(
       message: tooltip,
@@ -402,25 +436,20 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     );
   }
 
-  void _cycleWorld() {
-    const order = ['overworld', 'nether', 'end'];
-    final cur = AppState.I.world;
-    final next = order[(order.indexOf(cur) + 1) % order.length];
-    AppState.I.setWorld(next);
-    _load(resetView: true);
-  }
+
 
   String _worldName(String w) =>
       w == 'overworld' ? '主世界' : (w == 'nether' ? '地狱' : '末地');
 
   Widget _buildTile(TileIndex t) {
     // 惰性加载：build 时发现缺失瓦片即入队（异步，不阻塞渲染）
-    if (!_mem.containsKey(t.key)) {
+    final mk = AppState.I.world + '/' + t.key;
+    if (!_mem.containsKey(mk)) {
       _ensureTile(AppState.I.world, t.key);
     }
     final s = _worldToScreen(t.x.toDouble(), t.z.toDouble());
     final size = 1024 * _scale;
-    final bytes = _mem[t.key];
+    final bytes = _mem[mk];
     return Positioned(
       left: s.dx,
       top: s.dy,
