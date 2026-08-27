@@ -14,6 +14,12 @@
 - **服务器页**：MC Server List Ping 协议（与 QQ 群机器人苦力怕娘同途径）监控在线人数/玩家/延迟，每 1 分钟系统自动刷新（用户不可手动）；卡片化；右上角 + 添加域名（最多 5 个）；📌 置顶且多个置顶可拖动排序；成功=绿色泛光恒常 / 新添加未获取=红色泛光闪烁 / 连续失败 3 次=冻结样式+失败持续时间 / 恢复成功解除；长按卡片上浮+其余界面模糊 → 菜单（收藏·修改域名·删除）；单击下沉无功能
 - **Android 返回手势**：默认系统返回导航（次级页面返回上级，地图页退出）
 
+## 构建验证（2026-08 实测通过）
+
+- Flutter 3.47.2 stable / Dart 3.13.2 / JDK 17 / Android SDK platform-35+36 / build-tools 36 / NDK r28c
+- 已成功产出 `app-release.apk`（52.0MB），并通过 adb 安装到 Android 15 设备（Xiaomi, arm64-v8a）验证可启动
+- 本机工具链位于 `C:\dev\`（flutter / jdk17 / android-sdk），项目源码在仓库 `mobile_app/`
+- 已知要点：H: 盘为 exFAT，Gradle 在其上构建会卡死，需在 NTFS 盘构建（本项目使用 C:\build\mc_server_map 副本）
 ## 环境要求
 
 - Flutter SDK >= 3.16（Dart >= 3.0）
