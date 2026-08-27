@@ -50,7 +50,7 @@ flutter build apk --release
 
 ## 配置
 
-- **API 域名**：`lib/api_client.dart` 顶部 `base` 常量，默认 `https://worldeternal.xyz`，与你的 Cloudflare 部署域名一致；不一致时改这里
+- **API 域名**：`lib/api_client.dart` 顶部 `base` 常量，默认 `https://mmap.worldeternal.xyz`，与你的 Cloudflare 部署域名一致；不一致时改这里
 - **Wiki 站**：`lib/pages/wiki_page.dart` 默认 mcmod.cn；搜索 URL `https://www.mcmod.cn/s?key=关键词`（如站点搜索路径有变可在此调整）
 - **MC 服务器**：添加时填 `域名` 或 `域名:端口`（默认 25565）；服务器需开放 25565 查询端口（与网页/机器人监控同一要求）
 

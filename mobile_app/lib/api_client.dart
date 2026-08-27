@@ -5,7 +5,7 @@ import 'models.dart';
 
 class ApiClient {
   // 部署域名：如与网页端不同请修改
-  static const String base = 'https://worldeternal.xyz';
+  static const String base = 'https://mmap.worldeternal.xyz';
 
   static const _timeout = Duration(seconds: 10);
 
