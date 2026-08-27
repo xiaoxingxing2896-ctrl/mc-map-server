@@ -157,7 +157,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",Helv
 .marker-item .badge-private{font-size:10px;background:rgba(31,35,40,0.06);color:var(--text-muted);padding:1px 6px;border-radius:20px;font-weight:500}
 .cat-spawn{--cat-color:var(--cat-spawn)}.cat-building{--cat-color:var(--cat-building)}.cat-farm{--cat-color:var(--cat-farm)}
 .cat-mine{--cat-color:var(--cat-mine)}.cat-landmark{--cat-color:var(--cat-landmark)}.cat-shop{--cat-color:var(--cat-shop)}.cat-other{--cat-color:var(--cat-other)}
-.panel{position:absolute;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:18px;min-width:300px;box-shadow:0 12px 40px rgba(31,35,40,0.18)}
+.panel{position:absolute;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:18px;min-width:300px;box-shadow:0 12px 40px rgba(31,35,40,0.18);z-index:1004}
 .panel.hidden{display:none!important}
 .marker-panel{top:64px;right:16px;width:320px}
 .auth-panel{top:50%;left:50%;transform:translate(-50%,-50%);width:360px}
@@ -200,21 +200,32 @@ textarea{resize:vertical;min-height:60px}
   .logo .logo-cube{font-size:12px}
   .coord-jump{display:none!important}
   .user-section{gap:6px}
-  .top-bar .btn,.top-bar .btn-sm,.user-section .btn{padding:6px 10px;font-size:12px;min-height:32px}
-  .top-bar .btn-icon{width:38px;height:38px;font-size:18px}
-  .sidebar{width:88vw;top:0;left:0;height:100vh;border-radius:0;box-shadow:0 0 24px rgba(31,35,40,0.25)}
+  .top-bar .btn,.top-bar .btn-sm,.user-section .btn{padding:6px 12px;font-size:13px;min-height:36px;border-radius:10px}
+  .top-bar .btn-icon{width:40px;height:40px;font-size:18px;border-radius:10px}
+  .sidebar{width:88vw;top:0;left:0;height:100vh;height:100dvh;border-radius:0;box-shadow:0 0 24px rgba(31,35,40,0.25);z-index:1003}
   .sidebar.collapsed{transform:translateX(-100%)}
+  .sidebar-header{flex-shrink:0;padding:14px 16px}
+  .sidebar-header .btn-icon{width:40px;height:40px;font-size:18px;border-radius:10px}
+  .side-backdrop{z-index:1002}
   .side-backdrop.show{display:block;inset:0}
-  .world-bar{padding:12px 14px}
-  .world-select{min-height:38px;font-size:14px}
-  .filter-bar input,.filter-bar select{min-height:40px;font-size:14px}
-  .marker-panel{width:100%;height:100%;top:0;right:0;left:0;border-radius:0;min-width:0;overflow-y:auto;animation:none}
-  .auth-panel{width:100%;height:100%;top:0;left:0;right:0;transform:none;border-radius:0;min-width:0;overflow-y:auto;animation:none}
+  .world-bar{padding:12px 14px;flex-shrink:0}
+  .world-select{min-height:44px;font-size:16px;border-radius:10px}
+  .filter-bar{padding:10px 14px;flex-shrink:0}
+  .filter-bar input,.filter-bar select{min-height:44px;font-size:16px;border-radius:10px}
+  .marker-panel,.auth-panel{width:100%;height:100vh;height:100dvh;top:0;right:0;left:0;transform:none;border-radius:0;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;animation:none;padding-top:max(16px, env(safe-area-inset-top));padding-bottom:env(safe-area-inset-bottom)}
   .coord-display{bottom:12px;right:12px;font-size:12px}
   .leaflet-control-zoom{margin-bottom:56px!important}
-  .marker-item{padding:12px 14px}
+  .marker-item{padding:13px 15px;border-radius:12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(31,35,40,0.06)}
+  .marker-item:active{transform:scale(.98)}
   .marker-item-title{font-size:14px}
-  .marker-list{padding:10px}
+  .marker-list{padding:10px;padding-bottom:24px;-webkit-overflow-scrolling:touch}
+  .marker-list::-webkit-scrollbar{display:none}
+  .form-group label{font-size:13px}
+  input[type="text"],input[type="password"],input[type="number"],textarea,select{min-height:44px;font-size:16px;border-radius:10px}
+  .form-actions{gap:10px}
+  .form-actions .btn{flex:1;min-height:44px;font-size:15px;border-radius:10px}
+  .panel h3{font-size:16px}
+  .auth-panel .btn-icon,.marker-panel .btn-icon{width:40px;height:40px;font-size:18px;border-radius:10px}
 }
 .world-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
 .world-label{font-size:12px;color:var(--text-muted);font-weight:600;white-space:nowrap}
