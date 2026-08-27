@@ -35,11 +35,15 @@ export function createDbFromD1(envDB) {
 // ---------- R2 实现 ----------
 export function createBucketFromR2(bucket) {
     return {
-        async listTiles() {
+        // prefix：按维度前缀列目录（如 'nether/'、'end/'）；空 = 主世界
+        async listTiles(prefix = '') {
             const objects = [];
             let cursor;
             do {
-                const res = await bucket.list(cursor ? { cursor } : {});
+                const opts = {};
+                if (prefix) opts.prefix = prefix;
+                if (cursor) opts.cursor = cursor;
+                const res = await bucket.list(opts);
                 objects.push(...res.objects);
                 cursor = res.truncated ? res.cursor : undefined;
             } while (cursor);

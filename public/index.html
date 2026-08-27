@@ -123,6 +123,7 @@ textarea{resize:vertical;min-height:60px}
   .coord-display{bottom:12px;right:12px;font-size:12px}
   .leaflet-control-zoom{margin-bottom:56px!important}
 }
+.world-select{background:rgba(0,0,0,0.25);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;margin-left:12px;outline:none;cursor:pointer}
 .coord-jump{display:flex;align-items:center;gap:6px;margin-right:12px}
 .coord-jump input{width:80px;padding:4px 8px;font-size:12px;text-align:center}
 </style>
@@ -133,6 +134,11 @@ textarea{resize:vertical;min-height:60px}
   <div class="top-bar">
     <button class="btn-icon menu-btn" id="menuBtn" onclick="toggleSidebar()" title="标注列表">☰</button>
     <div class="logo">🗺️ MC Server Map</div>
+    <select id="worldSelect" class="world-select" onchange="switchWorld(this.value)" title="世界维度">
+      <option value="overworld">主世界</option>
+      <option value="nether">地狱</option>
+      <option value="end">末地</option>
+    </select>
     <div style="display:flex;align-items:center;">
       <div class="coord-jump">
         <input type="number" id="jumpX" placeholder="X">
@@ -184,7 +190,7 @@ const MCCRS = L.extend({}, L.CRS.Simple, {
   transformation: new L.Transformation(1, 0, 1, 0)
 });
 
-let map, markersLayer, markersData = [], currentUser = null, selectedMarker = null, tempLatLng = null, lastRegEmail = '';
+let map, markersLayer, markersData = [], currentUser = null, selectedMarker = null, tempLatLng = null, lastRegEmail = '', currentWorld = 'overworld';
 // 在 Cloudflare 创建 Turnstile 后填入 Site Key（公开值）；留空则跳过人机验证
     const TURNSTILE_SITE_KEY = '0x4AAAAAAEaCtMNdUOErOfPT';
 let authBusy = false;
@@ -278,10 +284,13 @@ function pumpTiles(){
 
 async function loadTileIndex(){
   try {
-    const r = await fetch('/api/tiles');
+    const r = await fetch('/api/tiles' + (currentWorld !== 'overworld' ? '?world=' + currentWorld : ''));
     if (!r.ok) return;
     tileIndex = await r.json();
-    if (tileIndex.length === 0) return;
+    if (tileIndex.length === 0) {
+      renderMarkerList();
+      return;
+    }
     const xs = tileIndex.map(t => t.x);
     const zs = tileIndex.map(t => t.z);
     const minX = Math.min(...xs);
@@ -293,6 +302,22 @@ async function loadTileIndex(){
   } catch (e) {
     console.log('瓦片索引加载失败');
   }
+}
+
+// 切换世界维度（主世界 / 地狱 / 末地）
+async function switchWorld(world){
+  if (world === currentWorld) return;
+  currentWorld = world;
+  document.getElementById('worldSelect').value = world;
+  // 清空当前地图瓦片
+  tileIndex = []; pendingTiles = [];
+  activeOverlays.forEach(ov => { try { map.removeLayer(ov); } catch (e) {} });
+  activeOverlays.clear(); inFlight.clear();
+  // 清空标注
+  markersLayer.clearLayers(); markersData = [];
+  renderMarkerList();
+  showToast(world === 'overworld' ? '已切换到主世界' : (world === 'nether' ? '已切换到地狱' : '已切换到末地'), 'info');
+  await Promise.all([loadTileIndex(), loadMarkers()]);
 }
 
 function jumpToCoord(){
@@ -711,7 +736,7 @@ async function loadMarkers(){
   try {
     const headers = {};
     if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
-    const r = await fetch('/api/markers', { headers });
+    const r = await fetch('/api/markers' + (currentWorld !== 'overworld' ? '?world=' + currentWorld : ''), { headers });
     markersData = await r.json();
     renderMarkers();
     renderMarkerList();
@@ -826,7 +851,7 @@ async function saveMarker(x, z){
   if (!title) return showToast('请输入标题', 'error');
   if (!currentUser) return showToast('请先登录', 'error');
 
-  const payload = {x, z, title, category, description: desc, isPublic, icon: iconVal};
+  const payload = {x, z, title, category, description: desc, isPublic, icon: iconVal, world: currentWorld};
   
   console.log('保存标注 payload:', payload); // 调试用
   

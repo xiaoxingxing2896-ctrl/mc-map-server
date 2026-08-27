@@ -24,10 +24,11 @@ export function createDbFromSqlite(sqlite3db) {
 
 export function createBucketFromDir(dir) {
   return {
-    async listTiles() {
+    async listTiles(prefix = '') {
+      const base = prefix ? path.join(dir, prefix) : dir;
       let files = [];
-      try { files = fs.readdirSync(dir); } catch (e) { return []; }
-      return files.map(f => ({ key: f }));
+      try { files = fs.readdirSync(base); } catch (e) { return []; }
+      return files.map(f => ({ key: prefix ? prefix + f : f }));
     },
     async getTile(key) {
       const full = path.join(dir, key);

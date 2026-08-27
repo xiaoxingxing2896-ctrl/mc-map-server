@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS markers (
     icon TEXT DEFAULT 'marker',
     created_by TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_public INTEGER DEFAULT 1
+    is_public INTEGER DEFAULT 1,
+    world TEXT DEFAULT 'overworld'
 );
 CREATE TABLE IF NOT EXISTS verification_codes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -79,7 +79,8 @@ async function initDatabase(db, adminPassword) {
       icon TEXT DEFAULT 'marker',
       created_by TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      is_public INTEGER DEFAULT 1
+      is_public INTEGER DEFAULT 1,
+      world TEXT DEFAULT 'overworld'
   )`);
   // 邮箱验证码表
   await db.run(`CREATE TABLE IF NOT EXISTS verification_codes (
@@ -93,6 +94,8 @@ async function initDatabase(db, adminPassword) {
   // 兼容已存在的旧 users 表：补充邮箱列（列已存在则忽略）
   try { await db.run("ALTER TABLE users ADD COLUMN email TEXT"); } catch {}
   try { await db.run("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0"); } catch {}
+  // 兼容旧 markers 表：补充 world 列（多维度预留）
+  try { await db.run("ALTER TABLE markers ADD COLUMN world TEXT DEFAULT 'overworld'"); } catch {}
   // 无默认管理员：用户只能通过邮箱注册，第一个注册者自动成为 owner（见 register 逻辑）
 }
 

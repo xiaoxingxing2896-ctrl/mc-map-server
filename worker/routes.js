@@ -261,7 +261,10 @@ export async function setUserRole(req, ctx) {
 export async function listTiles(req, ctx) {
   let files;
   try {
-    files = await ctx.bucket.listTiles();
+    // 多维度：?world=nether / end，瓦片位于 R2 前缀目录（nether/、end/）；缺省主世界
+    const world = (new URL(req.url).searchParams.get('world') || 'overworld').toLowerCase();
+    const prefix = world === 'overworld' ? '' : world + '/';
+    files = await ctx.bucket.listTiles(prefix);
   } catch (e) {
     return json({ error: '无法读取瓦片目录' }, 500);
   }
@@ -288,12 +291,13 @@ export async function listTiles(req, ctx) {
 
 // ---------- 标注 ----------
 export async function listMarkers(req, ctx) {
+  const world = (new URL(req.url).searchParams.get('world') || 'overworld').toLowerCase();
   const currentUser = await optionalAuthReq(req, ctx);
   if (currentUser) {
-    const rows = await ctx.db.query("SELECT * FROM markers WHERE is_public = 1 OR created_by = ? ORDER BY created_at DESC", [currentUser.username]);
+    const rows = await ctx.db.query("SELECT * FROM markers WHERE world = ? AND (is_public = 1 OR created_by = ?) ORDER BY created_at DESC", [world, currentUser.username]);
     return json(rows);
   }
-  const rows = await ctx.db.query("SELECT * FROM markers WHERE is_public = 1 ORDER BY created_at DESC", []);
+  const rows = await ctx.db.query("SELECT * FROM markers WHERE world = ? AND is_public = 1 ORDER BY created_at DESC", [world]);
   return json(rows);
 }
 
@@ -306,17 +310,19 @@ export async function getMarker(req, ctx) {
 export async function createMarker(req, ctx) {
   const { user } = await authenticateReq(req, ctx);
   const body = await req.json().catch(() => ({}));
-  const { x, z, title, description, category, isPublic, icon } = body || {};
+  const { x, z, title, description, category, isPublic, icon, world } = body || {};
   if (!title || typeof title !== 'string' || title.trim() === '') {
     return json({ error: '标题不能为空' }, 400);
   }
   if (!isInt(x) || !isInt(z)) {
     return json({ error: 'x/z 必须是整数' }, 400);
   }
+  const w = (world || 'overworld').toString().toLowerCase();
+  if (!['overworld', 'nether', 'end'].includes(w)) return json({ error: '无效的世界' }, 400);
   const res = await ctx.db.run(
-    `INSERT INTO markers (x, z, title, description, category, created_by, is_public, icon)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [Number(x), Number(z), title.trim(), description || '', category || 'other', user.username, isPublic ? 1 : 0, safeIcon(icon)]
+    `INSERT INTO markers (x, z, title, description, category, created_by, is_public, icon, world)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [Number(x), Number(z), title.trim(), description || '', category || 'other', user.username, isPublic ? 1 : 0, safeIcon(icon), w]
   );
   const row = await ctx.db.get("SELECT * FROM markers WHERE id = ?", [res.lastRowId]);
   return json(row);
