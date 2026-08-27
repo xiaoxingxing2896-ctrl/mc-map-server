@@ -291,13 +291,8 @@ async function loadTileIndex(){
       renderMarkerList();
       return;
     }
-    const xs = tileIndex.map(t => t.x);
-    const zs = tileIndex.map(t => t.z);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs) + CONFIG.tileSize;
-    const minZ = Math.min(...zs);
-    const maxZ = Math.max(...zs) + CONFIG.tileSize;
-    map.fitBounds(L.latLngBounds([[minZ, minX], [maxZ, maxX]]), { animate: false });
+    // 进入页面/切换世界时，地图中心回到世界原点 (0,0)
+    map.setView([0, 0], 0, { animate: false });
     updateVisibleTiles();
   } catch (e) {
     console.log('瓦片索引加载失败');
