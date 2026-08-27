@@ -302,7 +302,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildCard(ServerEntry e, int index) {
+  Widget _buildCard(ServerEntry e, int index, {bool overlay = false}) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final Color? border = e.status == ServerStatus.ok
         ? (dark ? McColors.darkGreenBright : McColors.lightGreen)
@@ -310,9 +310,10 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
             ? Theme.of(context).dividerColor
             : (dark ? McColors.darkDanger : McColors.lightDanger));
 
-    // 卡片动画：长按上浮 1.02 / 单击下沉 0.96
-    final pressed = _longPressed?.id == e.id;
-    final scale = pressed ? 1.02 : (_pressedId == e.id ? 0.96 : 1.0);
+    // 浮层卡片恒上浮；底层列表不因长按放大（仅单击下沉），避免重复浮现
+    final scale = overlay
+        ? 1.03
+        : (_pressedId == e.id ? 0.96 : 1.0);
 
     return Padding(
       key: ValueKey(e.id),
@@ -518,7 +519,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
                 child: IgnorePointer(
                   child: Transform.scale(
                     scale: 1.03,
-                    child: _buildCard(e, 0),
+                    child: _buildCard(e, 0, overlay: true),
                   ),
                 ),
               ),

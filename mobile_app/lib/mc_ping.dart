@@ -23,7 +23,7 @@ class McPingResult {
 /// 连接超时 5s，读取超时 6s；失败抛异常
 Future<McPingResult> pingServer(String host, int port) async {
   final sw = Stopwatch()..start();
-  final socket = await Socket.connect(host, port, timeout: const Duration(seconds: 5));
+  final socket = await Socket.connect(host, port, timeout: const Duration(seconds: 8));
   try {
     // 1) Handshake: 0x00, protocol=47(1.8+), host, port, nextState=1
     final hs = BytesBuilder();
@@ -146,7 +146,7 @@ Future<Uint8List> readFullPacket(Socket socket) {
       sub.cancel();
     } catch (_) {}
   });
-  return completer.future.timeout(const Duration(seconds: 6));
+  return completer.future.timeout(const Duration(seconds: 10));
 }
 
 /// 读取 varint 长度前缀 + UTF-8 字符串
