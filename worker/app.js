@@ -96,6 +96,8 @@ async function initDatabase(db, adminPassword) {
   try { await db.run("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0"); } catch {}
   // 兼容旧 markers 表：补充 world 列（多维度预留）
   try { await db.run("ALTER TABLE markers ADD COLUMN world TEXT DEFAULT 'overworld'"); } catch {}
+  // 确保旧标注的 world 正确（避免多维度过滤后"标点丢失"）
+  try { await db.run("UPDATE markers SET world = 'overworld' WHERE world IS NULL OR world = ''"); } catch {}
   // 无默认管理员：用户只能通过邮箱注册，第一个注册者自动成为 owner（见 register 逻辑）
 }
 
