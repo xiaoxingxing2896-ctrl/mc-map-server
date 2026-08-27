@@ -23,6 +23,7 @@ class _MarkersPageState extends State<MarkersPage> {
   String _search = '';
   // 维度与标记列表独立于地图页：切换只影响本页
   String _world = 'overworld';
+  String _cachedWorld = ''; // 已显示缓存的维度
   List<McMarker> _markers = [];
 
   @override
@@ -44,8 +45,13 @@ class _MarkersPageState extends State<MarkersPage> {
 
   Future<void> _ensureLoaded() async {
     if (_loading) return;
-    // 先显示本地缓存，避免网络慢/超时时出现"暂无标记"
-    if (_markers.isEmpty) {
+    // 维度切换：立即显示新维度缓存（避免标记更换过慢）
+    if (_cachedWorld != _world) {
+      _cachedWorld = _world;
+      final cached = await MarkerCache.load(_world);
+      if (mounted) setState(() => _markers = cached);
+    } else if (_markers.isEmpty) {
+      // 首次进入：也先显示缓存
       final cached = await MarkerCache.load(_world);
       if (cached.isNotEmpty && mounted) setState(() => _markers = cached);
     }

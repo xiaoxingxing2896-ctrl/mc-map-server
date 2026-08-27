@@ -186,9 +186,10 @@ String extractMotd(dynamic desc) {
 /// 查询 Minecraft SRV 记录：_minecraft._tcp.<host>（Cloudflare DoH）
 /// 返回真实 (host, port)；无记录返回 null
 Future<(String, int)?> lookupMcSrv(String host) async {
-  // Google DNS 优先（标准 JSON，稳定），Cloudflare DoH 备用
+  // 大陆可达 DNS 优先：阿里 dns.alidns.com > 腾讯 doh.pub > Cloudflare DoH 兜底
   final apis = [
-    'https://dns.google/resolve',
+    'https://dns.alidns.com/resolve',
+    'https://doh.pub/dns-query',
     'https://cloudflare-dns.com/dns-query',
   ];
   for (final api in apis) {
@@ -196,15 +197,16 @@ Future<(String, int)?> lookupMcSrv(String host) async {
       final uri = Uri.parse(api).replace(
           queryParameters: {'name': '_minecraft._tcp.$host', 'type': 'SRV'});
       final r = await http
-          .get(uri,
-              headers: api.contains('dns.google')
-                  ? null
-                  : {'accept': 'application/dns-json'})
+          .get(uri, headers: {'accept': 'application/dns-json'})
           .timeout(const Duration(seconds: 5));
       if (r.statusCode != 200) continue;
       final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
-      final ans = j['Answer'] as List? ?? const [];
-      for (final a in ans) {
+      // alidns 用 Answer 数组，部分实现返回单对象
+      final ans = j['Answer'];
+      final list = ans is List
+          ? ans
+          : (ans is Map ? [ans] : const []);
+      for (final a in list) {
         final data = (a as Map)['data']?.toString() ?? '';
         final parts = data.trim().split(RegExp(r'\s+'));
         if (parts.length >= 4) {
@@ -220,4 +222,27 @@ Future<(String, int)?> lookupMcSrv(String host) async {
     } catch (_) {}
   }
   return null;
+}
+
+/// 备用：通过 mcsrvstat.us 公共 API 查询（海外节点，国内服务器可能查询不到，仅兜底）
+Future<McPingResult?> queryViaMcsrvstat(String host, int port) async {
+  try {
+    final r = await http
+        .get(Uri.parse('https://api.mcsrvstat.us/3/' + host + (port > 0 && port != 25565 ? ':' + port.toString() : '')))
+        .timeout(const Duration(seconds: 6));
+    if (r.statusCode != 200) return null;
+    final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+    if (j['online'] != true) return null;
+    final players = j['players'] as Map<String, dynamic>? ?? const {};
+    final list = players['list'] as List? ?? const [];
+    return McPingResult(
+      online: (players['online'] as num?)?.toInt() ?? 0,
+      max: (players['max'] as num?)?.toInt() ?? 0,
+      players: list.map((e) => e.toString()).toList(),
+      latencyMs: (j['latency'] as num?)?.toInt() ?? 0,
+      motd: '',
+    );
+  } catch (_) {
+    return null;
+  }
 }

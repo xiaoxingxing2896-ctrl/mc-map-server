@@ -106,7 +106,18 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
       if (port == 0) port = 25565;
     }
     try {
-      final r = await pingServer(host, port);
+      McPingResult r;
+      try {
+        r = await pingServer(host, port);
+      } catch (_) {
+        // 本地 status ping 失败：尝试 mcsrvstat.us 公共 API 兜底（海外节点）
+        final alt = await queryViaMcsrvstat(e.host, e.port);
+        if (alt == null) {
+          _markFail(e);
+          return;
+        }
+        r = alt;
+      }
       e.online = r.online;
       e.maxPlayers = r.max;
       e.players = r.players;

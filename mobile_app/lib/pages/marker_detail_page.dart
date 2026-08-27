@@ -1,6 +1,7 @@
 // 标记详情页：展示与网页端相同的全部内容，但只读不可编辑
 // 顶部 < 返回标记主页面
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../main.dart' show HomeShellState, mapNavKey;
@@ -85,8 +86,11 @@ class MarkerDetailPage extends StatelessWidget {
             // 快速定位到地图（长按，带提示；不用 Tooltip 以免抢占长按手势）
             GestureDetector(
               onLongPress: () {
+                HapticFeedback.mediumImpact(); // 震动反馈
                 mapNavKey.currentState?.focusAt(marker.x.toDouble(), marker.z.toDouble());
                 HomeShellState.instance?.switchTo(2);
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('已跳转到地图并定位到该标记')));
               },
               child: Container(
                 width: double.infinity,

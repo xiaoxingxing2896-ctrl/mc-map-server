@@ -108,7 +108,17 @@ class WikiPageState extends State<WikiPage> {
             ),
           ),
         ),
-        actions: const [],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: '刷新',
+            onPressed: () {
+              _refreshing = true;
+              setState(() {});
+              _controller.reload();
+            },
+          ),
+        ],
       ),
       body: PopScope(
         canPop: false,
@@ -139,38 +149,7 @@ class WikiPageState extends State<WikiPage> {
                   minHeight: 2,
                 ),
               ),
-            // 顶部下拉刷新区域（36px 透明，下拉触发刷新）
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 36,
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onVerticalDragUpdate: (d) {
-                  if (d.delta.dy > 8 && !_refreshing) {
-                    _refreshing = true;
-                    _controller.reload();
-                    setState(() {});
-                  }
-                },
-                child: _refreshing
-                    ? Container(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withOpacity(0.08),
-                        child: const Center(
-                          child: SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      )
-                    : Container(color: Colors.transparent),
-              ),
-            ),
+
           ],
         ),
       ),
