@@ -487,6 +487,14 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
   String _worldName(String w) =>
       w == 'overworld' ? '主世界' : (w == 'nether' ? '地狱' : '末地');
 
+  // 离散解码档位：避免缩放时每帧变化导致频繁重解码/闪烁
+  int _pickDecodeSize(double size) {
+    if (size <= 160) return 128;
+    if (size <= 320) return 256;
+    if (size <= 640) return 512;
+    return 1024;
+  }
+
   Widget _buildTile(TileIndex t) {
     // 惰性加载：build 时发现缺失瓦片即入队（异步，不阻塞渲染）
     final mk = AppState.I.world + '/' + t.key;
@@ -496,8 +504,9 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     final s = _worldToScreen(t.x.toDouble(), t.z.toDouble());
     final size = 1024 * _scale;
     final bytes = _mem[mk];
-    // 按显示尺寸缩小解码（缩小/远离时解码更小，内存与速度都更快）
-    final decodeW = (size.clamp(64.0, 1024.0)).round();
+    // 离散解码档位：缩小用低分辨率（快省内存），放大逐步提高清晰度
+    // gaplessPlayback 保持旧帧，新档位解码完成后平滑替换（防碎片感）
+    final decodeW = _pickDecodeSize(size);
     return Positioned(
       left: s.dx,
       top: s.dy,
