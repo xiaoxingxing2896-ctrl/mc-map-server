@@ -244,7 +244,26 @@ class _MarkersPageState extends State<MarkersPage> {
   Widget _buildMarkerList() {
     final list = _filtered();
     if (list.isEmpty) {
-      return const Center(child: Text('暂无标记', style: TextStyle(fontSize: 13)));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _search.isNotEmpty ? '🔍' : (_typeFilter == 'fav' ? '⭐' : '🗺️'),
+              style: const TextStyle(fontSize: 42),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _search.isNotEmpty
+                  ? '没有找到匹配的标记'
+                  : (_typeFilter == 'fav' ? '还没有收藏的标记' : '暂无标记'),
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+            ),
+          ],
+        ),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(10),

@@ -58,13 +58,14 @@ class BottomNavBar extends StatelessWidget {
                         width: 56,
                         height: 56,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                          // MC 方块风格（小圆角 + 渐变 + 白描边）
                           gradient: const LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [Color(0xFF4AA32C), Color(0xFF2D6B22)],
                           ),
                           border: Border.all(color: Colors.white, width: 3),
+                          borderRadius: BorderRadius.circular(8),
                           boxShadow: [
                             BoxShadow(
                               color: const Color(0xFF3B8526).withOpacity(0.45),
@@ -73,7 +74,30 @@ class BottomNavBar extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.map, color: Colors.white, size: 28),
+                        // MC 草方块像素图标（绿草顶 + 棕色土侧）
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 26,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF63C74D),
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(2)),
+                              ),
+                            ),
+                            Container(
+                              width: 26,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF8B6B4D),
+                                borderRadius: const BorderRadius.vertical(
+                                    bottom: Radius.circular(2)),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
