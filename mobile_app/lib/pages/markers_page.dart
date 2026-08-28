@@ -60,17 +60,20 @@ class _MarkersPageState extends State<MarkersPage> {
     _loading = true;
     try {
       final token = AppState.I.user?.token;
-      final fetched = await ApiClient.fetchMarkers(target, token: token);
+      // 8 秒超时保护：网络慢也不至于"无响应"
+      final fetched = await ApiClient.fetchMarkers(target, token: token)
+          .timeout(const Duration(seconds: 8));
       await MarkerCache.save(target, fetched);
       // 维度已切换：丢弃过期结果，避免标签错乱
       if (mounted && _world == target) {
         setState(() => _markers = fetched);
       }
     } catch (_) {
-      // 网络失败：保留缓存显示，不置空
+      // 网络失败/超时：保留缓存显示，不置空
+    } finally {
+      _loading = false; // 保证切换维度后不会卡"加载中"无响应
+      if (mounted) setState(() {});
     }
-    _loading = false;
-    if (mounted) setState(() {});
   }
 
   @override

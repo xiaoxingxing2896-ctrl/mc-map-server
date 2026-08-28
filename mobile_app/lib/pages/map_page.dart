@@ -496,13 +496,19 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     final s = _worldToScreen(t.x.toDouble(), t.z.toDouble());
     final size = 1024 * _scale;
     final bytes = _mem[mk];
+    // 按显示尺寸缩小解码（缩小/远离时解码更小，内存与速度都更快）
+    final decodeW = (size.clamp(64.0, 1024.0)).round();
     return Positioned(
       left: s.dx,
       top: s.dy,
       width: size,
       height: size,
       child: bytes != null
-          ? Image.memory(bytes, fit: BoxFit.fill, gaplessPlayback: true)
+          ? Image.memory(bytes,
+              fit: BoxFit.fill,
+              gaplessPlayback: true,
+              cacheWidth: decodeW,
+              cacheHeight: decodeW)
           : Container(color: Colors.black12),
     );
   }
