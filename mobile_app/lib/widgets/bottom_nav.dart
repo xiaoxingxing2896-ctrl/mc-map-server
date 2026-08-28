@@ -1,5 +1,6 @@
 // 底部导航栏：服务器 | wiki | [地图·居中凸起] | 标记 | 我的
 // 对称分布；选中项主绿胶囊填色（微信/QQ 风格）；固定在底部不被页面覆盖
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme.dart';
 
@@ -14,19 +15,27 @@ class BottomNavBar extends StatelessWidget {
     final Color card = dark ? McColors.darkCard : McColors.lightCard;
     final Color border = dark ? McColors.darkBorder : McColors.lightBorder;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: card,
-        border: Border(top: BorderSide(color: border, width: 0.8)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(dark ? 0.5 : 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
+    // 毛玻璃底部导航：半透明 + 模糊背景 + 顶部高光细边
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: card.withValues(alpha: dark ? 0.72 : 0.82),
+            border: Border(
+              top: BorderSide(
+                  color: dark ? const Color(0xFF3A3833) : const Color(0xFFE9E9E2),
+                  width: 0.8),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: dark ? 0.45 : 0.10),
+                blurRadius: 16,
+                offset: const Offset(0, -3),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: SafeArea(
+          child: SafeArea(
         top: false,
         child: SizedBox(
           height: 58,
@@ -118,6 +127,8 @@ class BottomNavBar extends StatelessWidget {
                 onTap: () => onTap(4),
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),

@@ -13,6 +13,7 @@ import '../api_client.dart';
 import '../models.dart';
 import '../stores.dart';
 import '../theme.dart';
+import '../widgets/glass.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -401,15 +402,12 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
             Positioned(
               right: 10,
               top: MediaQuery.of(context).padding.top + 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.35),
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                            child: GlassBox(
+                borderRadius: 14,
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                 child: Text(
-                  user == null ? '未登录' : '👤 ${user.username}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  user == null ? '未登录' : '👤 ' + user.username,
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -423,13 +421,9 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
                   ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('已复制 $_coordText')));
                 },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.35),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                child: GlassBox(
+                  borderRadius: 10,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Text(
                     _coordText,
                     style: const TextStyle(
@@ -449,46 +443,41 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     });
   }
 
-  Widget _worldButton(String w, String label) {
+    Widget _worldButton(String w, String label) {
     final sel = AppState.I.world == w;
     final green = Theme.of(context).brightness == Brightness.dark
         ? McColors.darkGreen
         : McColors.lightGreen;
-    return GestureDetector(
+    return GlassBox(
+      borderRadius: 9,
+      blur: 10,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      tint: sel ? green : null,
       onTap: () {
         if (w == AppState.I.world) return;
         AppState.I.setWorld(w);
         _load(resetView: true);
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: sel ? green : Colors.black.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                color: sel ? Colors.white : Colors.white70,
-                fontSize: 11,
-                fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
-      ),
+      child: Text(label,
+          style: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+              shadows: const [
+                Shadow(offset: Offset(0.5, 0.5), color: Color(0x44000000)),
+              ])),
     );
   }
 
-  Widget _roundButton(IconData icon, String tooltip, VoidCallback onTap) {
+    Widget _roundButton(IconData icon, String tooltip, VoidCallback onTap) {
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: Colors.black.withOpacity(0.35),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(9),
-            child: Icon(icon, color: Colors.white, size: 19),
-          ),
-        ),
+      child: GlassBox(
+        borderRadius: 10,
+        blur: 10,
+        padding: const EdgeInsets.all(9),
+        onTap: onTap,
+        child: Icon(icon, color: Colors.white, size: 19),
       ),
     );
   }
