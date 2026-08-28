@@ -45,21 +45,27 @@ class _MarkersPageState extends State<MarkersPage> {
 
   Future<void> _ensureLoaded() async {
     if (_loading) return;
+    final target = _world; // 捕获目标维度：返回时维度已变则丢弃结果
     // 维度切换：立即显示新维度缓存（避免标记更换过慢）
-    if (_cachedWorld != _world) {
-      _cachedWorld = _world;
-      final cached = await MarkerCache.load(_world);
-      if (mounted) setState(() => _markers = cached);
+    if (_cachedWorld != target) {
+      _cachedWorld = target;
+      final cached = await MarkerCache.load(target);
+      if (mounted && _world == target) setState(() => _markers = cached);
     } else if (_markers.isEmpty) {
-      // 首次进入：也先显示缓存
-      final cached = await MarkerCache.load(_world);
-      if (cached.isNotEmpty && mounted) setState(() => _markers = cached);
+      final cached = await MarkerCache.load(target);
+      if (cached.isNotEmpty && mounted && _world == target) {
+        setState(() => _markers = cached);
+      }
     }
     _loading = true;
     try {
       final token = AppState.I.user?.token;
-      _markers = await ApiClient.fetchMarkers(_world, token: token);
-      await MarkerCache.save(_world, _markers); // 成功后写缓存
+      final fetched = await ApiClient.fetchMarkers(target, token: token);
+      await MarkerCache.save(target, fetched);
+      // 维度已切换：丢弃过期结果，避免标签错乱
+      if (mounted && _world == target) {
+        setState(() => _markers = fetched);
+      }
     } catch (_) {
       // 网络失败：保留缓存显示，不置空
     }

@@ -39,7 +39,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
   final Map<String, Uint8List> _mem = {};
   static const int _memLimit = 240;
   final Map<String, bool> _pending = {}; // 正在加载
-  static const int _maxConcurrent = 3;
+  static const int _maxConcurrent = 6; // 瓦片并发下载（带宽充足时更快）
   int _inflight = 0;
   final List<String> _queue = [];
 
@@ -111,7 +111,11 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       }
     });
     try {
-      final tiles = await ApiClient.fetchTiles(world);
+      // 并行发起索引 + 标记请求（省一半加载时间）
+      final token = AppState.I.user?.token;
+      final tilesFuture = ApiClient.fetchTiles(world);
+      final markersFuture = ApiClient.fetchMarkers(world, token: token);
+      final tiles = await tilesFuture;
       if (seq != _loadSeq || !mounted) {
         if (mounted) setState(() => _loading = false); // 过期：重置加载态，避免永久转圈
         return;
@@ -120,9 +124,8 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       await TileIndexCache.save(world, tiles);
       // 增量检查：删除本地已失效瓦片；缺失瓦片由视野内按需下载（不阻塞）
       unawaited(TileCache.cleanupWithIndex(world, tiles));
-      // 标记
-      final token = AppState.I.user?.token;
-      final markers = await ApiClient.fetchMarkers(world, token: token);
+      // 标记（已在后台并行拉取）
+      final markers = await markersFuture;
       if (seq != _loadSeq || !mounted) {
         if (mounted) setState(() => _loading = false);
         return;
