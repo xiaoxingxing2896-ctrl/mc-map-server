@@ -1,0 +1,30 @@
+name: mc_server_map
+description: MC Server Map 移动端 App（地图/标记/Wiki/我的/服务器监控）
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # 网络请求
+  http: ^1.2.0
+  # 本地存储（登录缓存/收藏/历史/服务器列表）
+  shared_preferences: ^2.2.2
+  # 缓存目录
+  path_provider: ^2.1.2
+  # Wiki 页 WebView（mcmod.cn）
+  webview_flutter: ^4.7.0
+  # 中文标记按拼音首字母排序
+  lpinyin: ^2.0.3
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
