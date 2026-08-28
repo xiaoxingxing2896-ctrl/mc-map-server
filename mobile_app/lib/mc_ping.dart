@@ -25,9 +25,12 @@ class McPingResult {
 Future<McPingResult> pingServer(String host, int port) async {
   final sw = Stopwatch()..start();
   // 先解析 IP 再连接：避免 Android 上 Socket.connect 的 DNS 解析挂起
+  print('ping: lookup ' + host);
   final address = await InternetAddress.lookup(host).timeout(const Duration(seconds: 5));
+  print('ping: connect ' + address.first.address + ':' + port.toString());
   final socket = await Socket.connect(address.first, port,
       timeout: const Duration(seconds: 8));
+  print('ping: connected');
   try {
     // 1) Handshake: 0x00, protocol=47(1.8+), host, port, nextState=1
     final hs = BytesBuilder();
@@ -44,8 +47,11 @@ Future<McPingResult> pingServer(String host, int port) async {
     socket.add(wrapPacket(req.takeBytes()));
 
     // 3) 读取响应
+    print('ping: waiting response');
     final data = await readFullPacket(socket);
-    final jsonStr = decodeVarString(data);
+    print('ping: got response');
+    // 响应包第一个字节是 packet id（0x00），跳过后再读 JSON 字符串
+    final jsonStr = decodeVarString(data.sublist(1));
     final json = jsonDecode(jsonStr) as Map<String, dynamic>;
     sw.stop();
 

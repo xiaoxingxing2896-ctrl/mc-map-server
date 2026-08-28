@@ -112,7 +112,10 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     });
     try {
       final tiles = await ApiClient.fetchTiles(world);
-      if (seq != _loadSeq || !mounted) return; // 已被更新的切换覆盖，丢弃
+      if (seq != _loadSeq || !mounted) {
+        if (mounted) setState(() => _loading = false); // 过期：重置加载态，避免永久转圈
+        return;
+      }
       AppState.I.setTiles(tiles);
       await TileIndexCache.save(world, tiles);
       // 增量检查：删除本地已失效瓦片；缺失瓦片由视野内按需下载（不阻塞）
@@ -120,7 +123,10 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
       // 标记
       final token = AppState.I.user?.token;
       final markers = await ApiClient.fetchMarkers(world, token: token);
-      if (seq != _loadSeq || !mounted) return;
+      if (seq != _loadSeq || !mounted) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
       AppState.I.setMarkers(markers);
       await MarkerCache.save(world, markers);
       if (mounted) setState(() => _loading = false);
@@ -148,6 +154,7 @@ class MapPageState extends State<MapPage> with WidgetsBindingObserver {
     try {
       final tiles = await ApiClient.fetchTiles(world);
       if (seq != _loadSeq || !mounted) return;
+      if (world != AppState.I.world) return; // 世界已切换，丢弃旧世界响应
       AppState.I.setTiles(tiles);
       await TileIndexCache.save(world, tiles);
       unawaited(TileCache.cleanupWithIndex(world, tiles));

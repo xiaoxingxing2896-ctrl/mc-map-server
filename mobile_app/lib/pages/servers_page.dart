@@ -83,8 +83,13 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
   Future<void> _pingAll() async {
     if (_pinging || _list.isEmpty) return;
     _pinging = true;
-    await Future.wait(_list.map((e) => _pingOne(e)));
-    _pinging = false;
+    try {
+      await Future.wait(_list.map((e) => _pingOne(e)));
+    } catch (err) {
+      print('pingAll error: ' + err.toString());
+    } finally {
+      _pinging = false; // 保证重置，避免挂起卡死后续周期
+    }
     await ServersStore.save(_list);
     if (mounted) setState(() {});
   }
@@ -106,6 +111,7 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
       if (port == 0) port = 25565;
     }
     // 调试：记录解析结果
+    print('SRV resolved: ' + host + ':' + port.toString());
     await AuthStore.prefs.setString('srv_debug',
         DateTime.now().toString() + ' host=' + host + ' port=' + port.toString());
     try {
