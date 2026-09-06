@@ -1,30 +1,25 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:mc_server_map/main.dart';
+import 'package:mc_server_map/widgets/bottom_nav.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
-  });
+  for (final brightness in Brightness.values) {
+    testWidgets('navigation callbacks and selection in $brightness theme', (tester) async {
+      final taps = <int>[];
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(brightness: brightness),
+        home: Scaffold(bottomNavigationBar: BottomNavBar(index: 0, onTap: taps.add)),
+      ));
+      expect(find.byIcon(Icons.dns), findsOneWidget);
+      for (final label in ['服务器', 'Wiki', '标记', '我的']) {
+        await tester.tap(find.text(label));
+      }
+      expect(taps, [0, 1, 3, 4]);
+      final gestures = find.descendant(of: find.byType(BottomNavBar), matching: find.byType(GestureDetector));
+      expect(gestures, findsNWidgets(5));
+      await tester.tap(gestures.at(2));
+      expect(taps.last, 2);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

@@ -26,7 +26,7 @@ router.put('/:id/role', authenticate, requireRole('owner', 'admin'), (req, res) 
     if (targetId === req.user.id) {
       return res.status(403).json({ error: '无法修改自己的权限' });
     }
-    if (req.user.role === 'admin' && (target.role === 'owner' || target.role === 'admin')) {
+    if (req.user.role === 'admin' && (target.role === 'owner' || target.role === 'admin' || newRole === 'owner')) {
       return res.status(403).json({ error: '无权修改该用户的权限' });
     }
     db.run("UPDATE users SET role = ? WHERE id = ?", [newRole, targetId], function (err2) {

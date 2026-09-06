@@ -6,7 +6,7 @@ import { isValidEmail, sendEmail, issueCode, verifyCode, codeEmailHtml } from '.
 import { verifyTurnstile } from './turnstile.js';
 
 function isInt(v) {
-  return v !== '' && v !== null && v !== undefined && Number.isInteger(Number(v));
+  return (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isSafeInteger(Number(v));
 }
 
 function safeIcon(icon, fallback) {
@@ -250,7 +250,7 @@ export async function setUserRole(req, ctx) {
   const target = await ctx.db.get("SELECT * FROM users WHERE id = ?", [targetId]);
   if (!target) return json({ error: '用户不存在' }, 404);
   if (targetId === user.id) return json({ error: '无法修改自己的权限' }, 403);
-  if (user.role === 'admin' && (target.role === 'owner' || target.role === 'admin')) {
+  if (user.role === 'admin' && (target.role === 'owner' || target.role === 'admin' || newRole === 'owner')) {
     return json({ error: '无权修改该用户的权限' }, 403);
   }
   await ctx.db.run("UPDATE users SET role = ? WHERE id = ?", [newRole, targetId]);
@@ -306,6 +306,10 @@ export async function listMarkers(req, ctx) {
 export async function getMarker(req, ctx) {
   const row = await ctx.db.get("SELECT * FROM markers WHERE id = ?", [req.params.id]);
   if (!row) return json({ error: '标注不存在' }, 404);
+  const user = await optionalAuthReq(req, ctx);
+  if (row.is_public !== 1 && row.created_by !== user?.username) {
+    return json({ error: '标注不存在' }, 404);
+  }
   return json(row);
 }
 
@@ -350,8 +354,8 @@ export async function updateMarker(req, ctx) {
     [
       title !== undefined ? title.trim() : marker.title,
       description !== undefined ? description : marker.description,
-      category || 'other',
-      isPublic ? 1 : 0,
+      category !== undefined ? (category || 'other') : marker.category,
+      isPublic !== undefined ? (isPublic ? 1 : 0) : marker.is_public,
       x !== undefined ? Number(x) : marker.x,
       z !== undefined ? Number(z) : marker.z,
       safeIcon(icon, marker.icon),
