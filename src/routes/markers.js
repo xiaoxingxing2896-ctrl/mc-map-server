@@ -9,7 +9,7 @@ const { authenticate, optionalAuth } = require('../middleware');
 const router = express.Router();
 
 function isInt(v) {
-  return v !== '' && v !== null && v !== undefined && Number.isInteger(Number(v));
+  return (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isSafeInteger(Number(v));
 }
 
 function safeIcon(icon, fallback) {
@@ -37,10 +37,13 @@ router.get('/', optionalAuth, (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', optionalAuth, (req, res) => {
   db.get("SELECT * FROM markers WHERE id = ?", [req.params.id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: '标注不存在' });
+    if (row.is_public !== 1 && row.created_by !== req.user?.username) {
+      return res.status(404).json({ error: '标注不存在' });
+    }
     res.json(row);
   });
 });
@@ -80,8 +83,8 @@ router.put('/:id', authenticate, (req, res) => {
     db.run(`UPDATE markers SET title=?, description=?, category=?, is_public=?, x=?, z=?, icon=? WHERE id=?`,
       [title !== undefined ? title.trim() : marker.title,
        description !== undefined ? description : marker.description,
-       category || 'other',
-       isPublic ? 1 : 0,
+       category !== undefined ? (category || 'other') : marker.category,
+       isPublic !== undefined ? (isPublic ? 1 : 0) : marker.is_public,
        x !== undefined ? Number(x) : marker.x,
        z !== undefined ? Number(z) : marker.z,
        safeIconValue,

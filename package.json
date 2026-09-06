@@ -8,12 +8,29 @@
     "dev": "npx nodemon server.js",
     "backup": "node scripts/backup.js",
     "smoke": "node scripts/smoke-test.js",
+    "test": "node --test test/*.test.mjs test/*.test.cjs",
+    "test:worker": "node --test test/worker-*.test.mjs",
+    "test:coverage": "c8 node --test test/*.test.mjs test/*.test.cjs",
     "fetch-vendor": "node scripts/fetch-vendor.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "sqlite3": "^5.1.6",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2"
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "c8": "^12.0.0"
+  },
+  "c8": {
+    "all": true,
+    "check-coverage": true,
+    "lines": 90,
+    "statements": 90,
+    "branches": 85,
+    "functions": 90,
+    "include": ["config.js", "server.js", "src/**/*.js", "worker/*.js", "scripts/backup.js", "scripts/export-d1-sql.js", "scripts/fetch-vendor.js"],
+    "exclude": ["worker/test-local.js", "worker/dev-shims.js"],
+    "reporter": ["text", "html", "lcov", "json-summary"]
   }
 }

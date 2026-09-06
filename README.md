@@ -80,8 +80,13 @@ npm start          # http://localhost:3000
 
 ## 回归测试
 
+当前测试说明与已知覆盖缺口见 [TESTING.md](TESTING.md)。下方历史部署说明中的“32 项 / 49 张瓦片 / 默认 Owner / 两端逐字节一致”等描述不代表当前测试或 Worker 认证行为。Worker 当前使用邮箱验证登录。
+
 ```bash
-npm run smoke      # 需先启动服务（node server.js），全部 PASS 为通过
+npm ci
+npm test           # 隔离测试，无需先启动服务
+npm run test:coverage # HTML / LCOV 覆盖率报告
+npm run smoke      # Express 子集，使用临时数据
 ```
 
 ## 备份
@@ -191,7 +196,7 @@ cd worker && wrangler deploy
 
 ```bash
 cd worker
-node test-local.js        # 用 sqlite3 + tiles 目录 shim 直接驱动 app，32 项断言
+node test-local.js        # 隔离 Worker 测试：内存 SQLite、模拟邮件与存储
 ```
 
 ### 注意事项
