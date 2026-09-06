@@ -24,11 +24,11 @@ android {
 
     signingConfigs {
         create("release") {
-            // xiaoxingstar 签名（keystore: H:\dsh\mmap\keystore\xiaoxingstar.jks）
-            keyAlias = "xiaoxingstar"
-            keyPassword = "xiaoxingstar2026"
-            storeFile = file("H:/dsh/mmap/keystore/xiaoxingstar.jks")
-            storePassword = "xiaoxingstar2026"
+            // Release credentials are supplied by the build environment.
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            storeFile = System.getenv("ANDROID_KEYSTORE_PATH")?.let { file(it) }
+            storePassword = System.getenv("ANDROID_STORE_PASSWORD")
         }
     }
 

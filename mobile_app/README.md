@@ -81,3 +81,6 @@ lib/
 - IndexedStack 页面保活，切页不重建不丢状态
 - 服务器轮询仅前台运行（后台暂停 Timer）
 - 列表全部懒加载（ListView.builder）
+## Release signing
+
+Set ANDROID_KEYSTORE_PATH, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD and ANDROID_STORE_PASSWORD in the build environment before running flutter build apk --release. The keystore path can be absolute; credentials and machine-specific paths must not be committed. Debug builds and flutter test do not require release credentials.
