@@ -150,6 +150,7 @@ test('Worker entry point wires D1, R2 and configured JWT secret', async t => {
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), [{ x: 1, z: 2, url: '/tiles/x1z2.png' }]);
   const token = jwt.sign({ id: 1, username: 'entry-test', role: 'user' }, secret, { expiresIn: '1h' });
+  await db.run('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)', [1, 'entry-test', 'unused', 'user']);
   const me = await worker.fetch(new Request('https://test.invalid/api/me', { headers: { Authorization: `Bearer ${token}` } }), env);
   assert.equal(me.status, 200); assert.equal((await me.json()).username, 'entry-test');
 });

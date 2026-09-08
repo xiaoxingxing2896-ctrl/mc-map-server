@@ -1,6 +1,7 @@
 // 应用装配：安全头 / 限流 / 日志 / 路由分发 / 数据库初始化。
 // 与 Express 版行为对齐；依赖通过 deps 注入（D1/R2 或本地 shim）。
 import * as R from './routes.js';
+import { uploadTile } from './tile-upload.js';
 import { hashPassword } from './password.js';
 import { b64url } from './util.js';
 
@@ -175,6 +176,7 @@ async function dispatch(request, method, path, ctx) {
   let m = path.match(/^\/api\/users\/(\d+)\/role$/);
   if (m && method === 'PUT') return R.setUserRole(withParams(request, { id: m[1] }), ctx);
   if (path === '/api/tiles' && method === 'GET') return R.listTiles(request, ctx);
+  if (path === '/api/tiles' && method === 'PUT') return uploadTile(request, ctx);
   if (path === '/api/markers' && method === 'GET') return R.listMarkers(request, ctx);
   if (path === '/api/markers' && method === 'POST') return R.createMarker(request, ctx);
   m = path.match(/^\/api\/markers\/(\d+)$/);

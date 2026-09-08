@@ -58,7 +58,11 @@ app.use('/api/auth', memoryRateLimit(config.rateLimit.auth));
 // 业务路由
 // /api/me 保持原版顶层路径（前端登录状态检测依赖它）
 app.get('/api/me', require('./src/middleware').authenticate, (req, res) => {
-  res.json({ id: req.user.id, username: req.user.username, role: req.user.role });
+  db.get('SELECT id, username, role FROM users WHERE id = ?', [req.user.id], (err, user) => {
+    if (err) return res.status(500).json({ error: '读取账号失败' });
+    if (!user) return res.status(403).json({ error: '账号不存在' });
+    res.json(user);
+  });
 });
 app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/users', require('./src/routes/users'));

@@ -44,4 +44,5 @@ jobs:
             secret_access_key="$R2_SECRET_ACCESS_KEY" \
             endpoint="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com" \
             --non-interactive
-          rclone sync tiles r2:mc-map-tiles --fast-list --progress
+          # App uploads override repository tiles; never remove them during Git sync.
+          rclone sync tiles r2:mc-map-tiles --exclude '/_uploads/**' --fast-list --progress

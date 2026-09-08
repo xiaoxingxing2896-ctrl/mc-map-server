@@ -1,5 +1,7 @@
 # MC Server Map 移动端 App（Flutter）
 
+> Kotlin + Jetpack Compose 重构版位于 [android_native](../android_native/README.md)，包含管理员新增/替换瓦片功能。本目录保留为旧版对照，原生版使用独立包名，可并存安装。
+
 移动端原生 App，与网页端（Cloudflare Workers + D1/R2）共用同一套后端 API。
 独立分支构建，与网页端 main 完全分离。
 

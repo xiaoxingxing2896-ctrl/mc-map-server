@@ -26,6 +26,14 @@ npm run test:coverage
 
 ## 移动端
 
+### 原生 Android 重构版
+
+新工程见 [android_native/README.md](android_native/README.md)。运行 `:app:assembleDebug :app:testDebugUnitTest :app:lintDebug`，或使用 `scripts/build-android-native.ps1` 在 NTFS 盘构建。
+
+2026-09-08 本地验证：5 项 Kotlin 单元测试通过，APK 构建通过，Lint 0 错误；当前后端 68 项测试通过，行覆盖率 97.13%、分支覆盖率 90.32%。新增测试覆盖管理员瓦片上传、数据库当前角色/降权、PNG 边界与像素解压、并发写入、版本冲突和两个存储实现。详见 [验证记录](android_native/VERIFICATION.md)。真机和生产 R2 写入尚未验证。
+
+### 旧 Flutter 客户端
+
 ```sh
 cd mobile_app
 flutter pub get

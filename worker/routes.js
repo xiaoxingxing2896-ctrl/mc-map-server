@@ -227,7 +227,9 @@ export async function resetPassword(req, ctx) {
 
 export async function me(req, ctx) {
   const { user } = await authenticateReq(req, ctx);
-  return json({ id: user.id, username: user.username, role: user.role });
+  const current = await ctx.db.get('SELECT id, username, role FROM users WHERE id = ?', [user.id]);
+  if (!current) return json({ error: '账号不存在' }, 403);
+  return json(current);
 }
 
 // ---------- 用户管理 ----------
@@ -259,6 +261,8 @@ export async function setUserRole(req, ctx) {
 
 // ---------- 瓦片索引 ----------
 export async function listTiles(req, ctx) {
+  const world = (new URL(req.url).searchParams.get('world') || 'overworld').toLowerCase();
+  if (!['overworld', 'nether', 'end'].includes(world)) return json({ error: '维度无效' }, 400);
   let files;
   try {
     // 多维度：?world=nether / end，瓦片位于 R2 前缀目录（nether/、end/）；缺省主世界
@@ -272,6 +276,7 @@ export async function listTiles(req, ctx) {
   }
   const tiles = [];
   for (const obj of files) {
+    const previousLength = tiles.length;
     const f = obj.key;
     if (!f.endsWith('.png') && !f.endsWith('.jpg') && !f.endsWith('.webp')) continue;
     const match = f.match(/[xX](-?\d+)[zZ](-?\d+)/);
@@ -287,8 +292,21 @@ export async function listTiles(req, ctx) {
         if (m3) tiles.push({ x: parseInt(m3[1]), z: parseInt(m3[2]), url: `/tiles/${f}` });
       }
     }
+    if (tiles.length > previousLength && obj.etag) {
+      tiles[tiles.length - 1].url += `?v=${encodeURIComponent(obj.etag)}`;
+    }
   }
-  return json(tiles);
+  const overlays = await ctx.bucket.listTiles(`_uploads/${world}/`);
+  const merged = new Map(tiles.map(t => [`${t.x},${t.z}`, t]));
+  for (const o of overlays) {
+    const m = /\/x(-?\d+)_z(-?\d+)\.png$/.exec(o.key);
+    if (!m) continue;
+    const x = Number(m[1]), z = Number(m[2]);
+    merged.set(`${x},${z}`, { x, z, version: o.etag || '', url: `/tiles/${o.key}?v=${encodeURIComponent(o.etag || '')}` });
+  }
+  const response = json([...merged.values()]);
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
 }
 
 // ---------- 标注 ----------

@@ -10,3 +10,4 @@ mcmap.db
 migrate.sql
 worker/_worker-test.db
 coverage/
+tiles/_uploads/

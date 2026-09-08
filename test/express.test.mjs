@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { apiContract } from './api-contract.mjs';
 import { secret, seed, tileFiles, tokens } from './helpers.mjs';
 import { createDbFromSqlite } from '../worker/dev-shims.js';
+import { png } from './png-fixture.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'mc-map-test-'));
 Object.assign(process.env, { DB_PATH: ':memory:', TILES_DIR: dir, JWT_SECRET: secret, ADMIN_PASSWORD: 'TestPass123', TRUST_PROXY: '1' });
@@ -80,4 +81,25 @@ test('static page and vendor cache policies', async () => {
   assert.equal(page.headers.get('x-powered-by'), null);
   const vendor = await req('GET', '/vendor/leaflet.js'); assert.equal(vendor.status, 200);
   assert.match(vendor.headers.get('cache-control'), /max-age=31536000/);
+});
+
+test('Express tile upload enforces current roles, PNG bodies and replacement preconditions', async () => {
+  await fixture();
+  const upload = (query, token, bytes = png(), etag, type = 'image/png') => fetch(base + '/api/tiles?' + query, {
+    method: 'PUT', headers: { 'content-type': type, ...(token ? { authorization: 'Bearer ' + token } : {}), ...(etag ? { 'if-match': etag } : {}) }, body: bytes,
+  });
+  const q = 'world=nether&name=x0_z0.png&mode=add';
+  assert.equal((await upload(q)).status, 401);
+  assert.equal((await upload(q, tokens.alice)).status, 403);
+  assert.equal((await upload(q, tokens.admin, 'invalid')).status, 400);
+  assert.equal((await upload(q, tokens.admin, 'invalid', null, 'text/plain')).status, 415);
+  const added = await upload(q, tokens.admin); assert.equal(added.status, 201); const item = await added.json();
+  assert.equal((await upload(q, tokens.owner)).status, 409);
+  assert.equal((await upload(q.replace('add', 'replace'), tokens.owner, png(2))).status, 409);
+  assert.equal((await upload(q.replace('add', 'replace'), tokens.owner, png(2), item.version)).status, 200);
+  const index = (await req('GET', '/api/tiles?world=nether')).data; assert.equal(index.length, 1);
+  const tile = await fetch(base + index[0].url); assert.deepEqual(Buffer.from(await tile.arrayBuffer()), png(2));
+  await db.run("UPDATE users SET role = 'user' WHERE id = 2");
+  assert.equal((await upload('world=end&name=x0_z0.png&mode=add', tokens.admin)).status, 403);
+  assert.equal((await req('GET', '/api/me', undefined, tokens.admin)).data.role, 'user');
 });

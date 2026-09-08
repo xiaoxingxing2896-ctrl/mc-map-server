@@ -35,6 +35,14 @@ export function createDbFromD1(envDB) {
 // ---------- R2 实现 ----------
 export function createBucketFromR2(bucket) {
     return {
+        async headTile(key) { return bucket.head(key); },
+        async putTile(key, bytes, etag, uploadedBy) {
+            return bucket.put(key, bytes, {
+                onlyIf: etag ? { etagMatches: etag } : { etagDoesNotMatch: '*' },
+                httpMetadata: { contentType: 'image/png' },
+                customMetadata: { uploadedBy },
+            });
+        },
         // prefix：按维度前缀列目录（如 'nether/'、'end/'）；空 = 主世界
         async listTiles(prefix = '') {
             const objects = [];

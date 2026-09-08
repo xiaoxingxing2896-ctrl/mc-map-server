@@ -5,6 +5,8 @@
 
 ## 功能一览
 
+原生 Android 地图客户端的功能、构建与管理员瓦片上传说明见 [android_native/README.md](android_native/README.md)。旧 Flutter 客户端保留在 `mobile_app/`。
+
 - 俯视瓦片地图（Leaflet 渲染，MC 世界坐标直接映射，北朝上）
 - 地图上打标注：标题 / 类别（7 类）/ 描述 / 自定义 Emoji 图标 / 公开或私有
 - 侧栏标注列表：搜索、类别筛选、"仅我的标注"
