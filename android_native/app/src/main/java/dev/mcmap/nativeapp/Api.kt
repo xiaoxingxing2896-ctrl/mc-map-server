@@ -9,9 +9,35 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import java.util.Locale
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLException
 
 class ApiException(val status: Int, message: String): IOException(message)
+
+internal fun loginInputError(email: String, password: String): String? {
+    val address = email.trim()
+    if (address.isEmpty()) return "请输入注册邮箱"
+    if (!Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(address)) return "请输入有效的邮箱地址"
+    if (password.isEmpty()) return "请输入密码"
+    return null
+}
+
+internal fun loginFailureMessage(cause: Exception): String = when (cause) {
+    is ApiException -> when {
+        cause.status == 429 -> "登录尝试过于频繁，请稍后再试"
+        cause.status >= 500 -> "登录服务暂时不可用，请稍后重试"
+        else -> cause.message?.takeIf { it.isNotBlank() } ?: "登录失败，请重试"
+    }
+    is SocketTimeoutException -> "登录请求超时，请检查网络后重试"
+    is UnknownHostException -> "无法连接登录服务，请检查网络"
+    is SSLException -> "无法建立安全连接，请检查设备时间和网络"
+    is IOException -> "网络连接中断，请检查网络后重试"
+    else -> "登录未完成，请稍后重试"
+}
+
 class Api(context: Context) {
     val client = OkHttpClient.Builder().connectTimeout(12, TimeUnit.SECONDS).readTimeout(25, TimeUnit.SECONDS).callTimeout(40, TimeUnit.SECONDS)
         .cache(Cache(java.io.File(context.cacheDir, "http"), 128L * 1024 * 1024)).build()
@@ -35,8 +61,11 @@ class Api(context: Context) {
         return List(a.length()) { Marker.from(a.getJSONObject(it)) }
     }
     suspend fun login(email: String, password: String): User {
-        val j = JSONObject(request("/api/auth/login", body = JSONObject().put("email", email.trim()).put("password", password)))
-        return User(j.getString("username"), j.getString("role"), email.trim(), j.getString("token"), System.currentTimeMillis())
+        val address = email.trim().lowercase(Locale.ROOT)
+        val j = JSONObject(request("/api/auth/login", body = JSONObject().put("email", address).put("password", password)))
+        return User(j.getString("username"), j.getString("role"), address, j.getString("token"), System.currentTimeMillis()).also {
+            check(it.valid() && it.role in listOf("user", "admin", "owner")) { "登录响应无效" }
+        }
     }
     suspend fun resolveServer(address: String): Endpoint = withContext(Dispatchers.IO) {
         val original = Endpoint.parse(address)

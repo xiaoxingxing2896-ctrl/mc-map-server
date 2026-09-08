@@ -53,7 +53,8 @@ import kotlin.math.roundToInt
     DisposableEffect(loader) { onDispose { loader.shutdown() } }
     LaunchedEffect(focusSeq) { if (focusSeq > appliedFocus) { cx = focusX; cz = focusZ; scale = 1f; appliedFocus = focusSeq } }
     val density = LocalDensity.current
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF202B24))) {
+    val mapBackground = MaterialTheme.colorScheme.surfaceContainerHighest
+    BoxWithConstraints(Modifier.fillMaxSize().background(mapBackground)) {
         val width = constraints.maxWidth.toFloat(); val height = constraints.maxHeight.toFloat()
         val x0 = cx - width / (2 * scale); val z0 = cz - height / (2 * scale)
         val x1 = cx + width / (2 * scale); val z1 = cz + height / (2 * scale)
@@ -65,8 +66,13 @@ import kotlin.math.roundToInt
                 scale = next
             }
         }.pointerInput(vm.markers, vm.user, width, height) {
-            detectTapGestures(onTap = { p -> coordinate = "X ${(cx + (p.x - width / 2) / scale).roundToInt()}  ·  Z ${(cz + (p.y - height / 2) / scale).roundToInt()}" }, onLongPress = { p ->
-                if (vm.user != null) vm.markers.minByOrNull { m -> (Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() }?.let { m ->
+            detectTapGestures(onTap = { p ->
+                coordinate = "X ${(cx + (p.x - width / 2) / scale).roundToInt()}  ·  Z ${(cz + (p.y - height / 2) / scale).roundToInt()}"
+                vm.markers.minByOrNull { m -> (Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() }?.let { m ->
+                    if ((Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() < 28 * density.density) open(m)
+                }
+            }, onLongPress = { p ->
+                vm.markers.minByOrNull { m -> (Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() }?.let { m ->
                     if ((Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() < 40 * density.density) open(m)
                 }
             })
@@ -96,8 +102,8 @@ import kotlin.math.roundToInt
             WorldPicker(vm.world, select = vm::changeWorld)
             FilledIconButton(onClick = { cx = 0f; cz = 0f; scale = .5f; vm.refresh() }) { Icon(Icons.Outlined.Refresh, "刷新并回到原点") }
         }
-        Surface(Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 16.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface.copy(alpha = .9f)) {
-            Text(vm.user?.username ?: "访客浏览", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
+        Surface(Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 16.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface.copy(alpha = .95f)) {
+            Text("${vm.tiles.size} 张瓦片 · ${vm.markers.size} 处标记", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
         }
         Column(Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             FilledTonalIconButton(onClick = { scale = (scale * 2).coerceAtMost(8f) }) { Icon(Icons.Outlined.Add, "放大地图") }
@@ -108,7 +114,7 @@ import kotlin.math.roundToInt
             }
         }
         if (vm.loading) LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
-        if (!vm.loading && vm.tiles.isEmpty()) Text("暂无地图瓦片\n可切换维度或点击刷新", color = Color.White, modifier = Modifier.align(Alignment.Center))
+        if (!vm.loading && vm.tiles.isEmpty()) Surface(Modifier.align(Alignment.Center).padding(24.dp), shape = MaterialTheme.shapes.medium) { Text("暂无地图瓦片\n可切换维度或点击刷新", modifier = Modifier.padding(20.dp)) }
     }
     if (jump) AlertDialog(onDismissRequest = { jump = false }, title = { Text("前往坐标") }, text = { Column {
         OutlinedTextField(jumpX, { jumpX = it }, label = { Text("X") }, singleLine = true)

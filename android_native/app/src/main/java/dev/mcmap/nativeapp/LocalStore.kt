@@ -7,6 +7,7 @@ import android.util.Base64
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
@@ -33,12 +34,24 @@ class LocalStore(private val context: Context) {
         val encrypted = cipher.doFinal(j.toString().toByteArray(Charsets.UTF_8))
         write("session", Base64.encodeToString(cipher.iv + encrypted, Base64.NO_WRAP))
     }
-    suspend fun user(): User? = runCatching {
-        val bytes = Base64.decode(read("session"), Base64.NO_WRAP)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12))) }
-        val j = JSONObject(String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8))
-        User(j.getString("username"), j.getString("role"), j.getString("email"), j.getString("token"), j.getLong("at")).takeIf { it.valid() }
-    }.getOrNull()
+    suspend fun user(): User? {
+        val saved = read("session")
+        if (saved.isBlank()) return null
+        val restored = try {
+            val bytes = Base64.decode(saved, Base64.NO_WRAP)
+            require(bytes.size >= 28) // 12-byte IV and 16-byte GCM authentication tag.
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12))) }
+            val j = JSONObject(String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8))
+            User(j.getString("username"), j.getString("role"), j.getString("email"), j.getString("token"), j.getLong("at")).takeIf { it.valid() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        // Remove invalid ciphertext (including an invalidated Keystore key) and expired sessions.
+        if (restored == null) saveUser(null)
+        return restored
+    }
     suspend fun records(key: String): List<WikiRecord> = runCatching {
         val a = JSONArray(read(key)); List(a.length()) { a.getJSONObject(it).let { j -> WikiRecord(j.getString("url"), j.getString("title"), j.getLong("time")) } }
     }.getOrDefault(emptyList())

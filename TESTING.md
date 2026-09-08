@@ -30,7 +30,9 @@ npm run test:coverage
 
 新工程见 [android_native/README.md](android_native/README.md)。运行 `:app:assembleDebug :app:testDebugUnitTest :app:lintDebug`，或使用 `scripts/build-android-native.ps1` 在 NTFS 盘构建。
 
-2026-09-08 本地验证：5 项 Kotlin 单元测试通过，APK 构建通过，Lint 0 错误；当前后端 68 项测试通过，行覆盖率 97.13%、分支覆盖率 90.32%。新增测试覆盖管理员瓦片上传、数据库当前角色/降权、PNG 边界与像素解压、并发写入、版本冲突和两个存储实现。详见 [验证记录](android_native/VERIFICATION.md)。真机和生产 R2 写入尚未验证。
+2026-09-09，2.1.0 最终源码的本地 APK 构建、11 项 Kotlin 单元测试和 Lint 均通过；Lint 为 0 错误、13 个非阻断警告。后端认证接口未改动，认证基础回归测试 19 项通过。APK 已更新安装到手机，冷启动 1781 ms，所查 AndroidRuntime 错误日志为空，地图显示真实瓦片和新版导航控件。用户已手动确认登录页、外观设置显示和操作正常；深色主题在标记页生效，重启保留深色与圆角设置，Wiki 原站已实际加载。Wiki 全量导航栈、收藏与手势、管理员上传仍待完整实测。最终产物、SHA-256 与各版本边界见 [验证记录](android_native/VERIFICATION.md)。
+
+2026-09-08，`b7092ce` / 2.0.0 本地验证：5 项 Kotlin 单元测试通过，APK 构建通过，Lint 0 错误；后端 68 项测试通过，行覆盖率 97.13%、分支覆盖率 90.32%。新增测试覆盖管理员瓦片上传、数据库当前角色/降权、PNG 边界与像素解压、并发写入、版本冲突和两个存储实现。该提交的原生 Android CI、Node.js 22/24 与 Flutter CI 均通过，Worker 已部署并通过线上读取检查，APK 已安装到手机并成功启动。真机完整交互、真实账号登录和生产 R2 写入尚未验证。详见 [验证记录](android_native/VERIFICATION.md)。
 
 ### 旧 Flutter 客户端
 
@@ -51,7 +53,7 @@ Dart 使用 Flutter 单独的 LCOV 报告，不能与 Node 百分比直接混用
 
 本地 Node 测试不是 workerd 集成测试：真实 D1/R2、CPU 限制、Workers Assets 路由及线上反向代理仍需环境测试。
 网页地图拖动/缩放、标注面板、浏览器缓存与多账号切换尚无浏览器端到端测试。
-Flutter SDK 不在本次本地环境中，新增移动端测试尚未在本地运行；CI 的 Flutter job 负责验证。
+Flutter SDK 不在本次本地环境中，新增移动端测试未在本地运行；`b7092ce` 的 [CI Flutter job 已通过](https://github.com/xiaoxingxing2896-ctrl/mc-map-server/actions/runs/34188800258)。
 CI 的 Tests workflow 在 push/PR 运行并上传覆盖报告。它未接入已有部署 workflow 的依赖关系，因此部署不会自动等待这些测试；合并保护需仓库设置另行配置。
 
 ## 回归修复

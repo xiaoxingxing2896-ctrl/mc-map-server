@@ -7,6 +7,10 @@
 
 原生 Android 地图客户端的功能、构建与管理员瓦片上传说明见 [android_native/README.md](android_native/README.md)。旧 Flutter 客户端保留在 `mobile_app/`。
 
+原生 2.1 界面采用 Minecraft 方块风格，支持持久化主题、配色、圆角、纹理与字号设置，Wiki 直接接入 [中文 Minecraft Wiki](https://zh.minecraft.wiki/)，并完善密码输入、认证提示和客户端会话处理。
+
+2026-09-08，原生客户端与管理员瓦片接口提交 `b7092ce` 已推送到 `main`，现有 Worker 已部署，原生 Android、后端与 Flutter CI 均通过。线上读取和手机安装启动的实际结果及未验证范围见 [构建与部署验证记录](android_native/VERIFICATION.md)。
+
 - 俯视瓦片地图（Leaflet 渲染，MC 世界坐标直接映射，北朝上）
 - 地图上打标注：标题 / 类别（7 类）/ 描述 / 自定义 Emoji 图标 / 公开或私有
 - 侧栏标注列表：搜索、类别筛选、"仅我的标注"
@@ -267,15 +271,16 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 | `R2_SECRET_ACCESS_KEY` | R2 API Access Key Secret |
 | `JWT_SECRET` | `openssl rand -base64 48`（与 cf-init 设置的保持一致） |
 
-### 5. 自动部署规则（两个 workflow）
+### 5. 自动部署与检查规则
 
 | 推送内容 | 触发动作 |
 |---|---|
 | `worker/**` 或 `public/**` | `deploy.yml`：自动创建 D1（首次）→ 建表 → `wrangler deploy` → 写入 JWT_SECRET |
-| `tiles/**` | `sync-tiles.yml`：rclone 同步瓦片到 R2 |
+| `tiles/**` | `sync-tiles.yml`：rclone 同步瓦片到 R2，保留 `/_uploads/**` 手机上传层 |
+| `android_native/**` 或原生构建工作流 | `android-native.yml`：构建调试 APK、单元测试、Lint，上传 APK 与报告 |
+| 任意 push / pull request | `test.yml`：Node.js 22/24 后端测试、覆盖率与 Flutter 测试 |
 
-首次 push 会在 Actions 里看到两个 workflow 运行，几分钟内完成。之后每次改代码/瓦片，push 即自动生效。
-也可以在 GitHub Actions 页面手动触发（workflow_dispatch）。
+Worker 与瓦片部署仅响应 `main` 上对应路径的 push；原生客户端变更生成 APK，不会安装到用户设备。检查工作流与部署工作流目前独立运行，部署不会自动等待测试。部署、瓦片同步和原生构建也可以在 GitHub Actions 页面手动触发（workflow_dispatch）。
 
 ### 6. 访问
 

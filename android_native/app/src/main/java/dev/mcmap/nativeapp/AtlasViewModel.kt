@@ -8,11 +8,29 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
 data class UploadDraft(val name: String, val bytes: ByteArray, val x: Int, val z: Int)
+
+// Account operations run on the main dispatcher. Serialize disk access as well, so an
+// old login or /me response cannot overwrite a newer login or a completed logout.
+internal class SessionChanges {
+    var revision = 0; private set
+    private val mutex = Mutex()
+    fun next(): Int = ++revision
+    fun isCurrent(value: Int) = value == revision
+    suspend fun <T> read(block: suspend () -> T): T = mutex.withLock { block() }
+    suspend fun commit(value: Int, block: suspend () -> Unit): Boolean = mutex.withLock {
+        if (!isCurrent(value)) return@withLock false
+        block()
+        isCurrent(value)
+    }
+}
+
 class AtlasViewModel(app: Application): AndroidViewModel(app) {
     val api = Api(app)
     private val store = LocalStore(app)
@@ -25,7 +43,8 @@ class AtlasViewModel(app: Application): AndroidViewModel(app) {
     var records by mutableStateOf(emptyList<WikiRecord>()); private set
     var loading by mutableStateOf(false); private set
     var error by mutableStateOf<String?>(null)
-    var authBusy by mutableStateOf(false); private set
+    var authBusy by mutableStateOf(true); private set
+    var authError by mutableStateOf<String?>(null); private set
     var draft by mutableStateOf<UploadDraft?>(null); private set
     var uploadBusy by mutableStateOf(false); private set
     var uploadMessage by mutableStateOf<String?>(null); private set
@@ -37,12 +56,28 @@ class AtlasViewModel(app: Application): AndroidViewModel(app) {
     private var uploadEpoch = 0
     private var loadJob: Job? = null
     private var pollJob: Job? = null
+    private var authJob: Job? = null
+    private var sessionValidationJob: Job? = null
+    private var uploadJob: Job? = null
+    private val sessionChanges = SessionChanges()
     private var foreground = false
     private var initialized = false
-    init { viewModelScope.launch {
-        user = store.user(); servers = store.servers(); loadFavorites()
-        initialized = true; refresh(); if (foreground) { startPolling(); validateSession() }
-    } }
+    init {
+        val sessionRevision = sessionChanges.revision
+        viewModelScope.launch {
+            try {
+                val restored = sessionChanges.read { store.user() }
+                if (sessionChanges.isCurrent(sessionRevision)) user = restored
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (sessionChanges.isCurrent(sessionRevision)) authError = "无法恢复登录状态，请重新登录"
+            } finally {
+                if (sessionChanges.isCurrent(sessionRevision)) authBusy = false
+            }
+            servers = store.servers(); loadFavorites()
+            initialized = true; refresh(); if (foreground) { startPolling(); validateSession() }
+        }
+    }
     fun changeWorld(value: String) { if (value != world && value in worlds) { world = value; tiles = emptyList(); markers = emptyList(); refresh() } }
     fun refresh() {
         loadJob?.cancel(); val seq = ++epoch; val target = world; val account = user
@@ -67,17 +102,53 @@ class AtlasViewModel(app: Application): AndroidViewModel(app) {
             if (seq == epoch) loading = false
         }
     }
-    fun login(email: String, password: String) { if (authBusy) return; authBusy = true; error = null
-        viewModelScope.launch {
-            try { val result = api.login(email, password); store.saveUser(result); user = result; markers = emptyList(); loadFavorites(); refresh() }
-            catch (e: Exception) { if (e is CancellationException) throw e; error = e.message ?: "登录失败" }
-            finally { authBusy = false }
+    fun clearAuthError() { authError = null }
+    fun login(email: String, password: String) {
+        if (authBusy || user != null) return
+        authError = loginInputError(email, password)
+        if (authError != null) return
+        // A retry must keep the pending logout's revision so its disk clear still
+        // completes even if this login fails. Logout invalidates prior requests.
+        val sessionRevision = sessionChanges.revision
+        sessionValidationJob?.cancel()
+        authBusy = true
+        authJob = viewModelScope.launch {
+            try {
+                val result = api.login(email, password)
+                val saved = try {
+                    sessionChanges.commit(sessionRevision) { store.saveUser(result) }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    if (sessionChanges.isCurrent(sessionRevision)) authError = "无法安全保存登录状态，请检查设备存储后重试"
+                    return@launch
+                }
+                if (!saved) return@launch
+                user = result; markers = emptyList(); favorites = emptyList(); records = emptyList()
+                loadFavorites(); refresh()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (sessionChanges.isCurrent(sessionRevision)) authError = loginFailureMessage(e)
+            } finally {
+                if (sessionChanges.isCurrent(sessionRevision)) authBusy = false
+            }
         }
     }
-    fun logout() {
+    fun logout() = endSession(null)
+    private fun endSession(message: String?) {
+        val sessionRevision = sessionChanges.next()
+        authJob?.cancel(); sessionValidationJob?.cancel(); authBusy = false; authError = message
         fileEpoch++; uploadEpoch++
-        user = null; epoch++; loadJob?.cancel(); markers = emptyList(); favorites = emptyList(); records = emptyList(); draft = null; uploadIndexReady = false
-        viewModelScope.launch { store.saveUser(null); refresh() }
+        uploadJob?.cancel(); uploadBusy = false
+        user = null; epoch++; loadJob?.cancel(); markers = emptyList(); favorites = emptyList(); records = emptyList(); draft = null; uploadIndexReady = false; uploadTiles = emptyList(); uploadMessage = null
+        refresh()
+        viewModelScope.launch {
+            try {
+                withContext(NonCancellable) { sessionChanges.commit(sessionRevision) { store.saveUser(null) } }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (sessionChanges.isCurrent(sessionRevision)) authError = "已退出，但设备未能清除保存的会话，请重试退出或清除应用存储"
+            }
+        }
     }
     private suspend fun loadFavorites() {
         val account = user?.username ?: return
@@ -100,22 +171,29 @@ class AtlasViewModel(app: Application): AndroidViewModel(app) {
         foreground = active
         if (!active) { pollJob?.cancel(); pollJob = null; return }
         if (!initialized) return
-        if (user?.valid() == false) logout()
+        if (user?.valid() == false) endSession("登录已过期，请重新登录")
         validateSession()
         startPolling()
     }
     private fun validateSession() {
         val account = user ?: return
-        viewModelScope.launch {
+        if (sessionValidationJob?.isActive == true || authBusy) return
+        val sessionRevision = sessionChanges.revision
+        sessionValidationJob = viewModelScope.launch {
             try {
                 val me = JSONObject(api.request("/api/me", account.token))
-                if (user?.token == account.token) {
+                if (sessionChanges.isCurrent(sessionRevision) && user?.token == account.token) {
                     val current = account.copy(role = me.getString("role"), username = me.getString("username"))
-                    if (current != account) { user = current; store.saveUser(current); markers = emptyList(); loadFavorites(); refresh() }
+                    if (current != account && sessionChanges.commit(sessionRevision) { store.saveUser(current) }) {
+                        user = current; markers = emptyList(); favorites = emptyList(); records = emptyList()
+                        fileEpoch++; uploadEpoch++; draft = null; uploadTiles = emptyList(); uploadIndexReady = false
+                        uploadJob?.cancel(); uploadBusy = false; uploadMessage = null
+                        loadFavorites(); refresh()
+                    }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                if (e is ApiException && e.status in listOf(401, 403) && user?.token == account.token) logout()
+                if (e is ApiException && e.status in listOf(401, 403) && sessionChanges.isCurrent(sessionRevision) && user?.token == account.token) endSession("登录已失效，请重新登录")
                 // A network outage must not discard a valid locally cached session.
             }
         }
@@ -190,14 +268,17 @@ class AtlasViewModel(app: Application): AndroidViewModel(app) {
     fun upload(replace: Boolean) {
         val account = user ?: return; val selection = draft ?: return
         if (!account.admin || uploadBusy || !uploadIndexReady) return
+        val seq = ++uploadEpoch
         val target = uploadWorld; val existing = uploadTiles.find { it.x == selection.x && it.z == selection.z }
         uploadBusy = true; uploadMessage = null
-        viewModelScope.launch {
+        uploadJob = viewModelScope.launch {
             try {
                 api.upload(target, selection.name, replace, existing?.version, selection.bytes, account.token)
-                if (user?.token == account.token) { draft = null; uploadMessage = "上传成功，地图已更新"; if (target == world) refresh() }
-            } catch (e: Exception) { if (e is CancellationException) throw e; uploadMessage = e.message ?: "上传失败，可重试"; uploadIndexReady = false }
-            finally { uploadBusy = false }
+                if (seq == uploadEpoch && user?.token == account.token) { draft = null; uploadMessage = "上传成功，地图已更新"; if (target == world) refresh() }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (seq == uploadEpoch && user?.token == account.token) { uploadMessage = e.message ?: "上传失败，可重试"; uploadIndexReady = false }
+            } finally { if (seq == uploadEpoch) uploadBusy = false }
         }
     }
 }

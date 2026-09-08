@@ -2,21 +2,37 @@
 package dev.mcmap.nativeapp
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import java.text.Collator
 import java.text.DateFormat
@@ -24,11 +40,14 @@ import java.util.Date
 import java.util.Locale
 
 @Composable fun PageHeading(eyebrow: String, title: String, trailing: @Composable () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            Text(title, style = MaterialTheme.typography.headlineMedium)
-        }; trailing()
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(title, style = MaterialTheme.typography.headlineMedium)
+            }; trailing()
+        }
+        if (LocalAppearance.current.textures) MinecraftLandscape(Modifier.fillMaxWidth().height(28.dp))
     }
 }
 @Composable fun EmptyState(title: String, body: String) {
@@ -45,56 +64,100 @@ import java.util.Locale
             .sortedWith { a, b -> collator.compare(a.title, b.title) }
     }
     Column {
-        PageHeading("YOUR WORLD, BOOKMARKED", "标记") { WorldPicker(vm.world, select = vm::changeWorld) }
+        PageHeading("把探索留在地图上", "世界标记") { WorldPicker(vm.world, select = vm::changeWorld) }
+        Spacer(Modifier.height(12.dp))
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { filters = !filters }) { Icon(Icons.Outlined.Menu, "显示或收起分类") }
             OutlinedTextField(query, { query = it }, Modifier.weight(1f), placeholder = { Text("搜索名称或描述") }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, singleLine = true)
         }
         Spacer(Modifier.height(12.dp))
-        Row(Modifier.weight(1f)) {
-            if (filters) LazyColumn(Modifier.fillMaxWidth(.382f).padding(start = 12.dp)) {
+        if (filters) LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items((linkedMapOf("all" to "全部", "favorites" to "收藏") + categories).toList()) { (id, name) ->
-                    FilterChip(selected = category == id, onClick = { category = id }, label = { Text(name) }, modifier = Modifier.fillMaxWidth().padding(end = 8.dp))
+                    FilterChip(selected = category == id, onClick = { category = id }, label = { Text(name) })
                 }
-            }
-            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        }
+        Text("${worlds[vm.world]} · ${visible.size} 处标记", Modifier.padding(horizontal = 20.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (visible.isEmpty()) item { EmptyState(if (vm.loading) "正在加载" else "没有匹配的标记", "切换分类、维度或搜索词试试") }
                 items(visible, key = { it.id }) { marker ->
-                    ElevatedCard(onClick = { open(marker) }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedCard(onClick = { open(marker) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("${marker.icon.ifBlank { "📍" }} ${marker.title}", style = MaterialTheme.typography.titleMedium)
                             Text("X ${marker.x} · Z ${marker.z}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                             Text(categories[marker.category] ?: marker.category, style = MaterialTheme.typography.bodySmall)
+                            if (marker.description.isNotBlank()) Text(marker.description, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
-        }
     }
 }
 @Composable fun ProfilePage(vm: AtlasViewModel, navigate: (String) -> Unit) {
-    var email by rememberSaveable { mutableStateOf("") }; var password by remember { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val user = vm.user
+    LaunchedEffect(user?.token) { if (user != null) { password = ""; showPassword = false; focus.clearFocus(); keyboard?.hide() } }
+    val submit = {
+        if (!vm.authBusy) { focus.clearFocus(); keyboard?.hide(); vm.login(email, password) }
+    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeading("MC ATLAS", "我的")
-        val user = vm.user
+        PageHeading("MC ATLAS · 探索者工作台", "我的") {
+            IconButton(onClick = { navigate("appearance") }) { Icon(Icons.Outlined.Palette, "外观设置") }
+        }
+        Spacer(Modifier.height(20.dp))
         if (user == null) {
-            ElevatedCard(Modifier.padding(horizontal = 20.dp).fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Icon(Icons.Outlined.PersonOutline, null, Modifier.size(36.dp))
-                    Text("登录，连接你的世界", style = MaterialTheme.typography.titleLarge)
-                    Text("使用地图网站的邮箱账号", style = MaterialTheme.typography.bodyMedium)
-                    OutlinedTextField(email, { email = it }, label = { Text("邮箱") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(password, { password = it }, label = { Text("密码") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { vm.login(email, password); password = "" }, enabled = !vm.authBusy && email.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (vm.authBusy) "登录中…" else "登录") }
+            Surface(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shadowElevation = 2.dp) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
+                            Icon(Icons.Outlined.PersonOutline, null, Modifier.padding(10.dp).size(28.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("欢迎回来，探索者", style = MaterialTheme.typography.titleLarge)
+                            Text("登录以收藏地点和管理地图", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    OutlinedTextField(email, { email = it; vm.clearAuthError() }, label = { Text("邮箱") }, placeholder = { Text("name@example.com") },
+                        leadingIcon = { Icon(Icons.Outlined.AlternateEmail, null) }, singleLine = true, enabled = !vm.authBusy,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next, autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
+                        keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }), modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Username + ContentType.EmailAddress })
+                    OutlinedTextField(password, { password = it; vm.clearAuthError() }, label = { Text("密码") },
+                        leadingIcon = { Icon(Icons.Outlined.Lock, null) }, trailingIcon = {
+                            IconButton(onClick = { showPassword = !showPassword }) { Icon(if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, if (showPassword) "隐藏密码" else "显示密码") }
+                        }, singleLine = true, enabled = !vm.authBusy,
+                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done, autoCorrectEnabled = false),
+                        keyboardActions = KeyboardActions(onDone = { submit() }), modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Password })
+                    if (password.isNotEmpty() && (password.first().isWhitespace() || password.last().isWhitespace())) {
+                        Text("密码包含首尾空格，请确认它们属于你的密码。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    }
+                    vm.authError?.let { message ->
+                        Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.small) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
+                                Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                    Button(onClick = submit, enabled = !vm.authBusy && email.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp), shape = MaterialTheme.shapes.small) {
+                        if (vm.authBusy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)) }
+                        Text(if (vm.authBusy) "正在连接账号…" else "登录地图账号")
+                        if (!vm.authBusy) { Spacer(Modifier.width(8.dp)); Icon(Icons.Outlined.ArrowForward, null, Modifier.size(18.dp)) }
+                    }
+                    Text("使用地图网站的邮箱与密码。Wiki 网站的账号独立管理。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
-            Card(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+            Card(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                 Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Outlined.Person, null, Modifier.size(40.dp))
                     Text(user.username, style = MaterialTheme.typography.headlineSmall)
                     Text(user.email)
-                    SuggestionChip(onClick = {}, label = { Text(when (user.role) { "owner" -> "Owner · 所有者"; "admin" -> "管理员"; else -> "探索者" }) })
+                    Text(when (user.role) { "owner" -> "所有者"; "admin" -> "管理员"; else -> "探索者" }, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
             }
             if (user.admin) Card(onClick = { navigate("upload") }, modifier = Modifier.padding(20.dp).fillMaxWidth()) {
@@ -102,16 +165,26 @@ import java.util.Locale
             }
         }
         Spacer(Modifier.height(16.dp))
-        TextButton(onClick = { navigate("favorites") }, modifier = Modifier.padding(horizontal = 12.dp)) { Icon(Icons.Outlined.BookmarkBorder, null); Spacer(Modifier.width(12.dp)); Text("Wiki 收藏") }
-        TextButton(onClick = { navigate("history") }, modifier = Modifier.padding(horizontal = 12.dp)) { Icon(Icons.Outlined.History, null); Spacer(Modifier.width(12.dp)); Text("浏览历史") }
+        Column(Modifier.padding(horizontal = 20.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)) {
+            ProfileLink("外观设置", "主题色、明暗模式、方块风格与字号", Icons.Outlined.Palette) { navigate("appearance") }
+            HorizontalDivider()
+            ProfileLink("Wiki 收藏", "留住有用的合成与探索知识", Icons.Outlined.BookmarkBorder) { navigate("favorites") }
+            HorizontalDivider()
+            ProfileLink("浏览历史", "继续上次的 Wiki 阅读", Icons.Outlined.History) { navigate("history") }
+        }
         if (user != null) TextButton(onClick = vm::logout, modifier = Modifier.padding(12.dp), enabled = !vm.uploadBusy) { Text("退出登录") }
-        Text("MC Atlas 2.0\n你的地图，你的探索记录", Modifier.padding(24.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("MC Atlas ${BuildConfig.VERSION_NAME} · 你的地图，你的探索记录", Modifier.padding(24.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+@Composable private fun ProfileLink(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = MaterialTheme.colorScheme.surface) {
+        ListItem(headlineContent = { Text(title) }, supportingContent = { Text(subtitle) }, leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) }, trailingContent = { Icon(Icons.Outlined.ChevronRight, null) })
     }
 }
 @Composable fun RecordsPage(vm: AtlasViewModel, favorite: Boolean, back: () -> Unit, open: (String) -> Unit) {
     val clipboard = LocalClipboardManager.current
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = back) { Icon(Icons.Outlined.ArrowBack, "返回") }; PageHeading("LIBRARY", if (favorite) "Wiki 收藏" else "浏览历史") }
+        Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = back) { Icon(Icons.Outlined.ArrowBack, "返回") }; PageHeading("探索知识库", if (favorite) "Wiki 收藏" else "浏览历史") }
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (vm.records.isEmpty()) item { EmptyState("还没有记录", if (favorite) "登录后，在 Wiki 页面点击收藏" else "浏览 Wiki 后会自动保留最后访问的页面") }
             items(vm.records, key = { it.url }) { record ->
@@ -129,14 +202,15 @@ import java.util.Locale
     var editing by remember { mutableStateOf<Server?>(null) }; var dialog by remember { mutableStateOf(false) }; var address by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf<Server?>(null) }; var deletion by remember { mutableStateOf<Server?>(null) }
     Column {
-        PageHeading("STAY CONNECTED", "服务器") { FilledTonalIconButton(onClick = { editing = null; address = ""; dialog = true }, enabled = vm.servers.size < 5) { Icon(Icons.Outlined.Add, "添加服务器") } }
+        PageHeading("与你的世界保持连接", "服务器") { FilledTonalIconButton(onClick = { editing = null; address = ""; dialog = true }, enabled = vm.servers.size < 5) { Icon(Icons.Outlined.Add, "添加服务器") } }
+        Spacer(Modifier.height(12.dp))
         Text("前台每分钟更新 · ${vm.servers.size}/5 个服务器", Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (vm.servers.isEmpty()) item { EmptyState("添加你的第一个世界", "点击右上角 +，输入 Java 版服务器域名。长按卡片可收藏、置顶和管理。") }
             items(vm.servers.sortedByDescending { it.pinned }, key = { it.id }) { server ->
                 val frozen = server.failures >= 3
                 val good = server.lastSuccess > 0 && server.failures == 0
-                Card(Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = { menu = server }), colors = CardDefaults.cardColors(containerColor = if (good) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Card(Modifier.fillMaxWidth().combinedClickable(onClick = { menu = server }, onLongClick = { menu = server }), colors = CardDefaults.cardColors(containerColor = if (good) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(if (good) Icons.Outlined.CheckCircle else Icons.Outlined.CloudOff, null, tint = if (good) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
