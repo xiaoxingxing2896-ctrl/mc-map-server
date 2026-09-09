@@ -97,13 +97,13 @@ enum class AtlasDestination(val label: String) { Servers("服务器"), Wiki("Wik
 
 @Composable fun AtlasButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, shape: Shape = MaterialTheme.shapes.small, content: @Composable RowScope.() -> Unit) {
     val source = remember { MutableInteractionSource() }
-    Button(onClick, modifier.heightIn(min = 48.dp).then(pressModifier(source)), enabled, shape = shape, interactionSource = source) {
+    Button(onClick, modifier.heightIn(min = 48.dp).minecraftBevel().then(pressModifier(source)), enabled, shape = shape, interactionSource = source) {
         Row(Modifier.themeTexture("button", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, content = content)
     }
 }
 @Composable fun AtlasOutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, shape: Shape = MaterialTheme.shapes.small, border: BorderStroke? = if (LocalAtlasTheme.current.style.border == 0) null else BorderStroke(LocalAtlasTheme.current.style.border.dp, MaterialTheme.colorScheme.outline), contentPadding: PaddingValues = ButtonDefaults.ContentPadding, content: @Composable RowScope.() -> Unit) {
     val source = remember { MutableInteractionSource() }
-    OutlinedButton(onClick, modifier.heightIn(min = 48.dp).then(pressModifier(source)), enabled, shape = shape, border = border, contentPadding = contentPadding, interactionSource = source, content = content)
+    OutlinedButton(onClick, modifier.heightIn(min = 48.dp).minecraftBevel().then(pressModifier(source)), enabled, shape = shape, border = border, contentPadding = contentPadding, interactionSource = source, content = content)
 }
 @Composable fun AtlasTextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, shape: Shape = MaterialTheme.shapes.small, contentPadding: PaddingValues = ButtonDefaults.TextButtonContentPadding, content: @Composable RowScope.() -> Unit) {
     val source = remember { MutableInteractionSource() }
@@ -126,13 +126,13 @@ enum class AtlasDestination(val label: String) { Servers("服务器"), Wiki("Wik
     FilledIconButton(onClick, modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).then(pressModifier(source)), enabled, shape = MaterialTheme.shapes.small, interactionSource = source, content = content)
 }
 @Composable fun AtlasCard(modifier: Modifier = Modifier, colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier, shape = MaterialTheme.shapes.medium, colors = colors, border = if (LocalAtlasTheme.current.style.border == 0) null else BorderStroke(LocalAtlasTheme.current.style.border.dp, MaterialTheme.colorScheme.outlineVariant)) {
+    Card(modifier.minecraftBevel(), shape = MaterialTheme.shapes.medium, colors = colors, border = if (LocalAtlasTheme.current.style.border == 0) null else BorderStroke(LocalAtlasTheme.current.style.border.dp, MaterialTheme.colorScheme.outlineVariant)) {
         Column(Modifier.themeTexture("panel", colors.containerColor, colors.contentColor), content = content)
     }
 }
 @Composable fun AtlasCard(onClick: () -> Unit, modifier: Modifier = Modifier, colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), content: @Composable ColumnScope.() -> Unit) {
     val source = remember { MutableInteractionSource() }
-    Card(onClick, modifier.then(pressModifier(source)), shape = MaterialTheme.shapes.medium, colors = colors, border = if (LocalAtlasTheme.current.style.border == 0) null else BorderStroke(LocalAtlasTheme.current.style.border.dp, MaterialTheme.colorScheme.outlineVariant), interactionSource = source) {
+    Card(onClick, modifier.minecraftBevel().then(pressModifier(source)), shape = MaterialTheme.shapes.medium, colors = colors, border = if (LocalAtlasTheme.current.style.border == 0) null else BorderStroke(LocalAtlasTheme.current.style.border.dp, MaterialTheme.colorScheme.outlineVariant), interactionSource = source) {
         Column(Modifier.themeTexture("panel", colors.containerColor, colors.contentColor), content = content)
     }
 }

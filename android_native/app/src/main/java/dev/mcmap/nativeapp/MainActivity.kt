@@ -89,7 +89,7 @@ class MainActivity: ComponentActivity() {
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(vm.error) { vm.error?.let { snack.showSnackbar(it); vm.error = null } }
     Scaffold(modifier = Modifier.imePadding(), snackbarHost = { SnackbarHost(snack) }, bottomBar = {
-      if (!WindowInsets.isImeVisible) Column {
+      if (!WindowInsets.isImeVisible && subpage != "studio") Column {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         AtlasNavigationBar(tab) { index -> tab = index; subpage = ""; if (index == 2) vm.refresh() }
       }

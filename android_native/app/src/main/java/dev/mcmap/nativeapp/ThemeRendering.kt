@@ -4,12 +4,46 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.staticCompositionLocalOf
+
+val LocalMinecraftMenus = staticCompositionLocalOf { false }
+
+/** Raised square edges inspired by block game menus; no game textures are bundled. */
+@Composable fun Modifier.minecraftBevel(): Modifier {
+    if (!LocalMinecraftMenus.current) return this
+    return drawWithContent {
+        drawContent()
+        val inset = 2.dp.toPx()
+        val width = 2.dp.toPx()
+        drawLine(Color.White.copy(alpha = .22f), Offset(inset, inset), Offset(size.width - inset, inset), width)
+        drawLine(Color.White.copy(alpha = .16f), Offset(inset, inset), Offset(inset, size.height - inset), width)
+        drawLine(Color.Black.copy(alpha = .55f), Offset(inset, size.height - inset), Offset(size.width - inset, size.height - inset), width)
+        drawLine(Color.Black.copy(alpha = .45f), Offset(size.width - inset, inset), Offset(size.width - inset, size.height - inset), width)
+    }
+}
+
+@Composable fun Modifier.minecraftBackdrop(): Modifier {
+    val color = androidx.compose.material3.MaterialTheme.colorScheme.background
+    return drawWithCache {
+        val block = 12.dp.toPx()
+        onDrawBehind {
+            drawRect(color)
+            for (y in 0..(size.height / block).toInt()) for (x in 0..(size.width / block).toInt()) {
+                if ((x * 7 + y * 11) % 5 == 0) drawRect(Color.White.copy(alpha = .025f), Offset(x * block, y * block), androidx.compose.ui.geometry.Size(block, block))
+                if ((x + y * 3) % 7 == 0) drawRect(Color.Black.copy(alpha = .08f), Offset(x * block, y * block), androidx.compose.ui.geometry.Size(block, block))
+            }
+        }
+    }
+}
 
 fun themeTypography(name: String, custom: FontFamily?): Typography {
     val family = when (name) { "serif" -> FontFamily.Serif; "mono" -> FontFamily.Monospace; "custom" -> custom ?: FontFamily.Default; else -> FontFamily.SansSerif }

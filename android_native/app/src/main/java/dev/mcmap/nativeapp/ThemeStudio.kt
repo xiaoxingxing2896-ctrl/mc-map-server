@@ -30,16 +30,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
     val scroll = rememberScrollState()
     LaunchedEffect(editorTab, loaded?.document?.pack?.id) { scroll.scrollTo(0) }
     // Follow the active theme; a draft only affects its isolated scene preview.
-    AtlasTheme(appearance.settings, appearance.active.document.pack, appearance.active.resources) {
+    val workbenchPack = appearance.active.document.pack.let { it.copy(style = it.style.copy(radius = 0, border = 2, font = "mono")) }
+    CompositionLocalProvider(LocalMinecraftMenus provides true) {
+    AtlasTheme(appearance.settings.copy(corners = false), workbenchPack, appearance.active.resources) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().themeTexture("background", MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.primary).verticalScroll(scroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.fillMaxSize().minecraftBackdrop().themeTexture("background", MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.primary).verticalScroll(scroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 AtlasCard(Modifier.fillMaxWidth()) {
                     MinecraftLandscape(Modifier.fillMaxWidth().height(52.dp))
                     Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         AtlasTextButton({ leave() }, enabled = !studio.busy) { Text("返回") }
                         Column(Modifier.weight(1f)) {
+                            Text("M C   A T L A S", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                             Text("主题工作室", style = MaterialTheme.typography.headlineSmall)
-                            Text("把探索世界的风格，装进你的工作台", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("建造属于你的界面", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -50,31 +53,28 @@ import androidx.lifecycle.viewmodel.compose.viewModel
                 val enabled = appearance.ready && !studio.busy && !appearance.themeBusy
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                   if (loaded == null) {
-                    AtlasButton({ import.launch(arrayOf("*/*")) }, enabled = enabled && !studio.dirty) { Text("导入主题包") }
-                    AtlasOutlinedButton({ editorTab = "预览"; studio.open(appearance.active.document.pack) }, enabled = enabled && !studio.dirty) { Text("定制当前主题") }
+                    StudioMenuButton("导入主题包", enabled) { import.launch(arrayOf("*/*")) }
+                    StudioMenuButton("定制当前主题", enabled) { editorTab = "预览"; studio.open(appearance.active.document.pack) }
                   }
                   // Recovery stays legible even if an imported font is unusable.
-                  AtlasTheme(Appearance(motion = "off", haptics = false)) {
-                    Surface(shape = MaterialTheme.shapes.small) {
-                      Row {
-                        AtlasTextButton({ appearance.apply("grass") }, enabled = enabled) { Text("恢复默认") }
-                        AtlasTextButton({ appearance.rollback() }, enabled = enabled && appearance.canRollback) { Text("撤回切换") }
-                      }
-                    }
+                  AtlasTheme(Appearance(mode = appearance.settings.mode, motion = "off", haptics = false), ThemeCatalog.find(workbenchPack.baseId).copy(style = ThemeStyle(radius = 0, border = 2))) {
+                    StudioMenuButton("恢复默认", enabled) { appearance.apply("grass") }
+                    if (appearance.canRollback) StudioMenuButton("撤回切换", enabled) { appearance.rollback() }
                   }
                 }
-                Text("当前应用：${appearance.active.document.pack.name}。预览和编辑不会改变当前主题。", style = MaterialTheme.typography.bodySmall)
+                Text("已装备 · ${appearance.active.document.pack.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 if (loaded == null) {
                     Text("主题库", style = MaterialTheme.typography.titleLarge)
                     ThemeCatalog.packs.forEach { pack ->
-                      AtlasTheme(appearance.settings.copy(packId = pack.id, accent = pack.accent), pack) {
+                      AtlasTheme(appearance.settings.copy(packId = pack.id, accent = pack.accent, corners = false), pack.copy(style = ThemeStyle(radius = 0, border = 2))) {
                         AtlasCard(Modifier.fillMaxWidth()) {
                             MinecraftLandscape(Modifier.fillMaxWidth().height(40.dp))
                             Column(Modifier.padding(12.dp)) {
-                                Text(pack.name, style = MaterialTheme.typography.titleMedium); Text(pack.description)
-                                Row {
-                                    AtlasTextButton({ editorTab = "预览"; studio.open(pack) }, enabled = enabled) { Text("预览 / 编辑") }
-                                    AtlasTextButton({ appearance.apply(pack.id) }, enabled = enabled) { Text("应用") }
+                                Text(pack.name, style = MaterialTheme.typography.titleMedium)
+                                Text(pack.description, style = MaterialTheme.typography.bodySmall)
+                                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    StudioMenuButton("预览 / 编辑", enabled, Modifier.weight(1f)) { editorTab = "预览"; studio.open(pack) }
+                                    StudioMenuButton(if (appearance.settings.packId == pack.id) "已装备" else "应用", enabled, Modifier.weight(1f)) { appearance.apply(pack.id) }
                                 }
                             }
                         }
@@ -148,7 +148,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
                     }
                     Text("纹理强度会受文字对比度约束；地图瓦片和 Wiki 正文保持其原始内容。", style = MaterialTheme.typography.bodySmall)
                     }
-                    if (editorTab == "预览") ThemePreview(loaded, appearance.settings)
+                    if (editorTab == "预览") CompositionLocalProvider(LocalMinecraftMenus provides false) { ThemePreview(loaded, appearance.settings) }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (editorTab != "预览") AtlasOutlinedButton({ editorTab = "预览" }, enabled = enabled) { Text("查看预览效果") }
                         AtlasButton({ studio.save(appearance, true) }, enabled = enabled) { Text("保存副本并应用") }
@@ -165,6 +165,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
             title = { Text("放弃未保存的修改？") }, text = { Text("已保存主题和当前外观不会改变。") }, dismissButton = { AtlasTextButton({ discard = false }) { Text("继续编辑") } })
         deleteId?.let { id -> AtlasDialog({ deleteId = null }, { AtlasTextButton({ appearance.delete(id); deleteId = null }) { Text("删除") } },
             title = { Text("删除此主题副本？") }, text = { Text("仅删除应用内副本，原始导入文件不受影响。") }, dismissButton = { AtlasTextButton({ deleteId = null }) { Text("取消") } }) }
+    }
+    }
+}
+
+@Composable private fun StudioMenuButton(title: String, enabled: Boolean, modifier: Modifier = Modifier, action: () -> Unit) {
+    AtlasOutlinedButton(action, modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh), enabled = enabled,
+        shape = androidx.compose.ui.graphics.RectangleShape, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f))
     }
 }
 
