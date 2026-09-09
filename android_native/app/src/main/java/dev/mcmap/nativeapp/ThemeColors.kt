@@ -5,12 +5,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 
-fun resolveThemeColors(appearance: Appearance, dark: Boolean): ColorScheme {
-    val pack = ThemeCatalog.find(appearance.packId)
+fun resolveThemeColors(appearance: Appearance, dark: Boolean, pack: AtlasThemePack = ThemeCatalog.find(appearance.packId)): ColorScheme {
     val accent = Color(0xFF000000 or appearance.accent.toLong(16))
     // Keep text and controls readable even when the user chooses a very pale or dark accent.
-    val primary = if (dark) generateSequence(lerp(accent, Color.White, .48f)) { lerp(it, Color.White, .12f) }.first { it.luminance() >= .3f }
-        else generateSequence(accent) { lerp(it, Color.Black, .12f) }.first { it.luminance() <= .18f }
+    val primary = if (dark) generateSequence(lerp(accent, Color.White, .48f)) { lerp(it, Color.White, .12f) }.first { it.luminance() >= .45f }
+        else generateSequence(accent) { lerp(it, Color.Black, .12f) }.first { it.luminance() <= .12f }
     val colors = if (dark) darkColorScheme(
         primary = primary, onPrimary = Color.Black, primaryContainer = lerp(accent, Color.Black, .63f), onPrimaryContainer = Color(0xFFE7EDE3),
         secondary = Color(0xFFBCCCBA), onSecondary = Color(0xFF233121), secondaryContainer = Color(0xFF364532), onSecondaryContainer = Color(0xFFE3ECDC),
@@ -28,10 +27,10 @@ fun resolveThemeColors(appearance: Appearance, dark: Boolean): ColorScheme {
         surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF2F4EF), surfaceContainer = Color(0xFFEAEDE5),
         surfaceContainerHigh = Color(0xFFE1E6DC), surfaceContainerHighest = Color(0xFFD8DFD2), surfaceBright = Color(0xFFFAFCF7), surfaceDim = Color(0xFFD9E1D5),
     )
-    val themedColors = if (pack.id == "grass") colors else {
+    val themedColors = if (pack.baseId == "grass") colors else {
         val tint = Color(pack.tint)
         colors.copy(
-            background = if (dark) (if (pack.id == "sculk") Color(0xFF0E171B) else Color(0xFF201411)) else lerp(Color.White, tint, .1f),
+            background = if (dark) (if (pack.baseId == "sculk") Color(0xFF0E171B) else Color(0xFF201411)) else lerp(Color.White, tint, .1f),
             surface = if (dark) lerp(Color(0xFF161616), tint, .19f) else lerp(Color.White, tint, .035f),
             surfaceContainerLowest = if (dark) Color(0xFF111111) else Color.White,
             surfaceContainerLow = lerp(colors.surfaceContainerLow, tint, .13f),
@@ -43,5 +42,11 @@ fun resolveThemeColors(appearance: Appearance, dark: Boolean): ColorScheme {
             tertiaryContainer = lerp(colors.tertiaryContainer, tint, .15f),
         )
     }
-    return themedColors
+    val custom = if (dark) pack.style.darkBackground else pack.style.lightBackground
+    if (custom.isEmpty()) return themedColors
+    val background = Color(0xFF000000 or custom.toLong(16))
+    // Background editing stays within the selected brightness family, keeping all controls legible.
+    val safeBackground = if (dark) generateSequence(background) { lerp(it, Color.Black, .12f) }.first { it.luminance() <= .035f }
+        else generateSequence(background) { lerp(it, Color.White, .12f) }.first { it.luminance() >= .8f }
+    return themedColors.copy(background = safeBackground)
 }

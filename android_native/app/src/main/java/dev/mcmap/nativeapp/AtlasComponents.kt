@@ -7,6 +7,7 @@ import android.view.View
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -52,6 +53,11 @@ val LocalAtlasTheme = staticCompositionLocalOf { ThemeCatalog.packs.first() }
 enum class AtlasDestination(val label: String) { Servers("服务器"), Wiki("Wiki"), Map("地图"), Markers("标记"), Profile("我的") }
 @Composable fun AtlasDestinationIcon(destination: AtlasDestination, modifier: Modifier = Modifier) {
     val color = LocalContentColor.current
+    val custom = LocalThemeResources.current.images[ThemePackage.iconRoles[destination.ordinal]]
+    if (custom != null) {
+        androidx.compose.foundation.Image(custom, null, modifier, colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(color))
+        return
+    }
     Canvas(modifier) {
         val unit = size.minDimension / 24f
         fun line(x: Float, y: Float, endX: Float, endY: Float) = drawLine(color, Offset(x * unit, y * unit), Offset(endX * unit, endY * unit), 2 * unit)
@@ -68,7 +74,9 @@ enum class AtlasDestination(val label: String) { Servers("服务器"), Wiki("Wik
 @Composable fun AtlasNavigationBar(selected: Int, select: (Int) -> Unit) {
     val feedback = LocalAtlasHaptics.current
     val motion = LocalAtlasMotion.current
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+    val colors = MaterialTheme.colorScheme
+    Box(Modifier.background(colors.surface).themeTexture("navigation", colors.surface, colors.primary, colors.onSurfaceVariant)) {
+    NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp) {
         AtlasDestination.entries.forEachIndexed { index, destination ->
             val active = selected == index
             val scale by animateFloatAsState(if (active && motion == "full") 1.12f else 1f, tween(motionDuration(motion, true, 160)), label = "navigation selection")
@@ -76,6 +84,7 @@ enum class AtlasDestination(val label: String) { Servers("服务器"), Wiki("Wik
                 icon = { AtlasDestinationIcon(destination, Modifier.size(26.dp).graphicsLayer { scaleX = scale; scaleY = scale }) }, label = { Text(destination.label, maxLines = 1) },
                 colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer, selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary))
         }
+    }
     }
 }
 
@@ -88,9 +97,11 @@ enum class AtlasDestination(val label: String) { Servers("服务器"), Wiki("Wik
 
 @Composable fun AtlasButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, shape: Shape = MaterialTheme.shapes.small, content: @Composable RowScope.() -> Unit) {
     val source = remember { MutableInteractionSource() }
-    Button(onClick, modifier.heightIn(min = 48.dp).then(pressModifier(source)), enabled, shape = shape, interactionSource = source, content = content)
+    Button(onClick, modifier.heightIn(min = 48.dp).then(pressModifier(source)), enabled, shape = shape, interactionSource = source) {
+        Row(Modifier.themeTexture("button", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, content = content)
+    }
 }
-@Composable fun AtlasOutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, shape: Shape = MaterialTheme.shapes.small, border: BorderStroke? = BorderStroke(1.dp, MaterialTheme.colorScheme.outline), contentPadding: PaddingValues = ButtonDefaults.ContentPadding, content: @Composable RowScope.() -> Unit) {
+@Composable fun AtlasOutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, shape: Shape = MaterialTheme.shapes.small, border: BorderStroke? = if (LocalAtlasTheme.current.style.border == 0) null else BorderStroke(LocalAtlasTheme.current.style.border.dp, MaterialTheme.colorScheme.outline), contentPadding: PaddingValues = ButtonDefaults.ContentPadding, content: @Composable RowScope.() -> Unit) {
     val source = remember { MutableInteractionSource() }
     OutlinedButton(onClick, modifier.heightIn(min = 48.dp).then(pressModifier(source)), enabled, shape = shape, border = border, contentPadding = contentPadding, interactionSource = source, content = content)
 }
@@ -115,11 +126,15 @@ enum class AtlasDestination(val label: String) { Servers("服务器"), Wiki("Wik
     FilledIconButton(onClick, modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).then(pressModifier(source)), enabled, shape = MaterialTheme.shapes.small, interactionSource = source, content = content)
 }
 @Composable fun AtlasCard(modifier: Modifier = Modifier, colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier, shape = MaterialTheme.shapes.medium, colors = colors, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), content = content)
+    Card(modifier, shape = MaterialTheme.shapes.medium, colors = colors, border = if (LocalAtlasTheme.current.style.border == 0) null else BorderStroke(LocalAtlasTheme.current.style.border.dp, MaterialTheme.colorScheme.outlineVariant)) {
+        Column(Modifier.themeTexture("panel", colors.containerColor, colors.contentColor), content = content)
+    }
 }
 @Composable fun AtlasCard(onClick: () -> Unit, modifier: Modifier = Modifier, colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), content: @Composable ColumnScope.() -> Unit) {
     val source = remember { MutableInteractionSource() }
-    Card(onClick, modifier.then(pressModifier(source)), shape = MaterialTheme.shapes.medium, colors = colors, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), interactionSource = source, content = content)
+    Card(onClick, modifier.then(pressModifier(source)), shape = MaterialTheme.shapes.medium, colors = colors, border = if (LocalAtlasTheme.current.style.border == 0) null else BorderStroke(LocalAtlasTheme.current.style.border.dp, MaterialTheme.colorScheme.outlineVariant), interactionSource = source) {
+        Column(Modifier.themeTexture("panel", colors.containerColor, colors.contentColor), content = content)
+    }
 }
 @Composable fun AtlasIcon(imageVector: ImageVector, contentDescription: String?, modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) = Icon(imageVector, contentDescription, modifier, tint)
 

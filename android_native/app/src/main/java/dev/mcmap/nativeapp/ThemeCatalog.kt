@@ -1,7 +1,11 @@
 package dev.mcmap.nativeapp
 
 /** Versioned built-in design tokens. External packages will use the same semantic model. */
-data class AtlasThemePack(val id: String, val name: String, val description: String, val accent: String, val tint: Long, val darkByDefault: Boolean)
+data class AtlasThemePack(val id: String, val name: String, val description: String, val accent: String, val tint: Long, val darkByDefault: Boolean,
+    val baseId: String = id, val author: String = "", val style: ThemeStyle = ThemeStyle())
+
+data class ThemeStyle(val radius: Int = 2, val border: Int = 1, val font: String = "sans", val fontScale: Float = 1f,
+    val lightBackground: String = "", val darkBackground: String = "", val textureOpacity: Float = .08f)
 
 object ThemeCatalog {
     val packs = listOf(

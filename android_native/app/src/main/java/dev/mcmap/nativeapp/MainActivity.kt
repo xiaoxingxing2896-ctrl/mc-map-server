@@ -42,14 +42,16 @@ class MainActivity: ComponentActivity() {
                     isAppearanceLightNavigationBars = !dark
                 }
             }
-            AtlasTheme(appearance.settings) { AtlasApp(appearance = appearance) }
+            AtlasTheme(appearance.settings, appearance.active.document.pack, appearance.active.resources) {
+                AtlasApp(appearance = appearance, initialPage = if (BuildConfig.DEBUG && intent.getBooleanExtra("theme_studio", false)) "studio" else "")
+            }
         }
     }
 }
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable fun AtlasApp(vm: AtlasViewModel = viewModel(), appearance: AppearanceViewModel = viewModel()) {
+@Composable fun AtlasApp(vm: AtlasViewModel = viewModel(), appearance: AppearanceViewModel = viewModel(), initialPage: String = "") {
     var tab by rememberSaveable { mutableIntStateOf(2) }
-    var subpage by rememberSaveable { mutableStateOf("") }
+    var subpage by rememberSaveable { mutableStateOf(initialPage) }
     var selected by remember { mutableStateOf<Marker?>(null) }
     var wikiUrl by rememberSaveable { mutableStateOf("https://zh.minecraft.wiki/") }
     var focusX by rememberSaveable { mutableFloatStateOf(0f) }
@@ -71,7 +73,7 @@ class MainActivity: ComponentActivity() {
         if (observedToken != vm.user?.token) {
             observedToken = vm.user?.token
             selected = null
-            if (subpage != "appearance") subpage = ""
+            if (subpage !in listOf("appearance", "studio")) subpage = ""
         }
     }
     BackHandler(subpage.isNotEmpty() || selected != null || tab != 2) {
@@ -92,11 +94,12 @@ class MainActivity: ComponentActivity() {
         AtlasNavigationBar(tab) { index -> tab = index; subpage = ""; if (index == 2) vm.refresh() }
       }
     }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).graphicsLayer { alpha = pageOpacity }) {
+        Column(Modifier.fillMaxSize().padding(padding).themeTexture("background", MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.primary).graphicsLayer { alpha = pageOpacity }) {
           pageState.SaveableStateProvider("$tab/$subpage") {
             when {
                 subpage == "upload" -> UploadPage(vm) { subpage = "" }
-                subpage == "appearance" -> AppearancePage(appearance) { subpage = "" }
+                subpage == "appearance" -> AppearancePage(appearance, { subpage = "studio" }) { subpage = "" }
+                subpage == "studio" -> ThemeStudioPage(appearance) { subpage = "appearance" }
                 subpage == "history" || subpage == "favorites" -> RecordsPage(vm, subpage == "favorites", { subpage = "" }) { wikiUrl = it; tab = 1; subpage = "" }
                 tab == 0 -> ServersPage(vm)
                 tab == 1 -> WikiPage(wikiUrl, { wikiUrl = it }, vm)
