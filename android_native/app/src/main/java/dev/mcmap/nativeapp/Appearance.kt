@@ -34,6 +34,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.IOException
+import android.provider.Settings
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 
 private val Context.appearanceStore by preferencesDataStore("appearance")
 data class Appearance(
@@ -42,6 +50,9 @@ data class Appearance(
     val corners: Boolean = false,
     val textScale: Float = 1f,
     val textures: Boolean = true,
+    val packId: String = "grass",
+    val motion: String = "full",
+    val haptics: Boolean = true,
 )
 val LocalAppearance = staticCompositionLocalOf { Appearance() }
 
@@ -56,6 +67,9 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
     private val cornersKey = booleanPreferencesKey("corners")
     private val scaleKey = floatPreferencesKey("text_scale")
     private val texturesKey = booleanPreferencesKey("textures")
+    private val packKey = stringPreferencesKey("theme_pack")
+    private val motionKey = stringPreferencesKey("motion")
+    private val hapticsKey = booleanPreferencesKey("haptics")
     init {
         viewModelScope.launch {
             try {
@@ -66,6 +80,9 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
                     corners = p[cornersKey] ?: false,
                     textScale = (p[scaleKey] ?: 1f).takeIf { it.isFinite() }?.coerceIn(.9f, 1.2f) ?: 1f,
                     textures = p[texturesKey] ?: true,
+                    packId = ThemeCatalog.find(p[packKey].orEmpty()).id,
+                    motion = p[motionKey]?.takeIf { it in listOf("full", "reduced", "off") } ?: "full",
+                    haptics = p[hapticsKey] ?: true,
                 )
             } catch (_: IOException) {
                 saveError = "暂时无法读取外观设置，已使用默认外观"
@@ -77,6 +94,7 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
                     store.edit { p ->
                         p[modeKey] = value.mode; p[accentKey] = value.accent
                         p[cornersKey] = value.corners; p[scaleKey] = value.textScale; p[texturesKey] = value.textures
+                        p[packKey] = value.packId; p[motionKey] = value.motion; p[hapticsKey] = value.haptics
                     }
                     saveError = null
                 } catch (_: IOException) {
@@ -93,31 +111,36 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
 }
 
 @Composable fun AtlasTheme(appearance: Appearance = Appearance(), content: @Composable () -> Unit) {
+    val pack = ThemeCatalog.find(appearance.packId)
+    val context = LocalContext.current
+    val view = LocalView.current
+    val latestAppearance by rememberUpdatedState(appearance)
+    val haptics = remember(view) { AtlasHaptics(view) { latestAppearance.haptics } }
+    fun systemMotion() = runCatching { Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f }.getOrDefault(false)
+    var systemAnimations by remember { mutableStateOf(systemMotion()) }
+    DisposableEffect(context) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) { systemAnimations = systemMotion() }
+        }
+        context.contentResolver.registerContentObserver(Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, observer)
+        onDispose { context.contentResolver.unregisterContentObserver(observer) }
+    }
     val dark = appearance.mode == "dark" || (appearance.mode == "system" && isSystemInDarkTheme())
-    val accent = Color(0xFF000000 or appearance.accent.toLong(16))
-    // Keep text and controls readable even when the user chooses a very pale or dark accent.
-    val primary = if (dark) lerp(accent, Color.White, .48f) else generateSequence(accent) { lerp(it, Color.Black, .12f) }.first { it.luminance() <= .18f }
-    val colors = if (dark) darkColorScheme(
-        primary = primary, onPrimary = Color.Black, primaryContainer = lerp(accent, Color.Black, .63f), onPrimaryContainer = Color(0xFFE7EDE3),
-        secondary = Color(0xFFBCCCBA), onSecondary = Color(0xFF233121), secondaryContainer = Color(0xFF364532), onSecondaryContainer = Color(0xFFE3ECDC),
-        tertiary = Color(0xFFB5D4E5), onTertiary = Color(0xFF16313F), tertiaryContainer = Color(0xFF304752), onTertiaryContainer = Color(0xFFD8EDF7),
-        background = Color(0xFF191D1B), onBackground = Color(0xFFE3E6E1), surface = Color(0xFF232724), onSurface = Color(0xFFE3E6E1),
-        surfaceVariant = Color(0xFF424941), onSurfaceVariant = Color(0xFFC0C8BD), outline = Color(0xFF899183), outlineVariant = Color(0xFF444E42),
-        surfaceContainerLowest = Color(0xFF151916), surfaceContainerLow = Color(0xFF222823), surfaceContainer = Color(0xFF2C332C),
-        surfaceContainerHigh = Color(0xFF343D33), surfaceContainerHighest = Color(0xFF404B3E), surfaceBright = Color(0xFF414940), surfaceDim = Color(0xFF191D1B),
-    ) else lightColorScheme(
-        primary = primary, onPrimary = Color.White, primaryContainer = lerp(accent, Color.White, .85f), onPrimaryContainer = Color(0xFF20301D),
-        secondary = Color(0xFF52634B), onSecondary = Color.White, secondaryContainer = Color(0xFFDCE6D6), onSecondaryContainer = Color(0xFF283E23),
-        tertiary = Color(0xFF366377), onTertiary = Color.White, tertiaryContainer = Color(0xFFD8EBF3), onTertiaryContainer = Color(0xFF234655),
-        background = Color(0xFFE7EFF2), onBackground = Color(0xFF262C27), surface = Color(0xFFF8F9F6), onSurface = Color(0xFF262C27),
-        surfaceVariant = Color(0xFFE0E5DD), onSurfaceVariant = Color(0xFF50584D), outline = Color(0xFF858D80), outlineVariant = Color(0xFFBFC7BA),
-        surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF2F4EF), surfaceContainer = Color(0xFFEAEDE5),
-        surfaceContainerHigh = Color(0xFFE1E6DC), surfaceContainerHighest = Color(0xFFD8DFD2), surfaceBright = Color(0xFFFAFCF7), surfaceDim = Color(0xFFD9E1D5),
-    )
+    val themedColors = resolveThemeColors(appearance, dark)
+    val effectiveMotion = if (systemAnimations) appearance.motion else "off"
+    // Only interpolate within the same brightness mode; switching brightness snaps
+    // text and surfaces together, avoiding unreadable intermediate combinations.
+    val displayedColors = key(dark) {
+        val background by animateColorAsState(themedColors.background, tween(motionDuration(effectiveMotion, true, 200)), label = "theme background")
+        val surface by animateColorAsState(themedColors.surface, tween(motionDuration(effectiveMotion, true, 200)), label = "theme surface")
+        themedColors.copy(background = background, surface = surface)
+    }
     val radius = if (appearance.corners) 12.dp else 2.dp
     val density = LocalDensity.current
-    CompositionLocalProvider(LocalAppearance provides appearance, LocalDensity provides Density(density.density, density.fontScale * appearance.textScale)) {
-        MaterialTheme(colorScheme = colors, shapes = Shapes(
+    CompositionLocalProvider(LocalAppearance provides appearance, LocalAtlasTheme provides pack,
+        LocalAtlasHaptics provides haptics, LocalAtlasMotion provides effectiveMotion,
+        LocalDensity provides Density(density.density, density.fontScale * appearance.textScale)) {
+        MaterialTheme(colorScheme = displayedColors, shapes = Shapes(
             extraSmall = RoundedCornerShape(radius), small = RoundedCornerShape(radius), medium = RoundedCornerShape(radius),
             large = RoundedCornerShape(radius), extraLarge = RoundedCornerShape(radius),
         ), typography = Typography(
@@ -130,23 +153,27 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
 
 /** Original block landscape, drawn in code; no Wiki artwork or logo is bundled. */
 @Composable fun MinecraftLandscape(modifier: Modifier = Modifier) {
+    val pack = LocalAtlasTheme.current.id
+    val sky = when(pack) { "sculk" -> Color(0xFF10282F); "nether" -> Color(0xFF471F1B); else -> Color(0xFF80C8EA) }
+    val groundColor = when(pack) { "sculk" -> Color(0xFF243A40); "nether" -> Color(0xFF352A28); else -> Color(0xFF765334) }
+    val highlight = when(pack) { "sculk" -> Color(0xFF54BEB1); "nether" -> Color(0xFFE28442); else -> Color(0xFF6B9E30) }
     Canvas(modifier) {
         val pixel = 4.dp.toPx()
-        drawRect(Color(0xFF80C8EA))
+        drawRect(sky)
         for (i in 0..5) {
             val x = i * size.width / 5 - 3 * pixel
             val y = (2 + i % 3) * pixel
-            drawRect(Color(0xFFBCE5F4), Offset(x, y), Size(9 * pixel, pixel))
-            drawRect(Color(0xFFD7EEF5), Offset(x + 2 * pixel, y - pixel), Size(5 * pixel, pixel))
+            drawRect(lerp(sky, highlight, .25f), Offset(x, y), Size(9 * pixel, pixel))
+            drawRect(lerp(sky, Color.White, .2f), Offset(x + 2 * pixel, y - pixel), Size(5 * pixel, pixel))
         }
         val ground = size.height - 5 * pixel
-        drawRect(Color(0xFF765334), Offset(0f, ground), Size(size.width, 5 * pixel))
+        drawRect(groundColor, Offset(0f, ground), Size(size.width, 5 * pixel))
         for (i in 0..(size.width / pixel).toInt()) {
             val x = i * pixel
             val blades = if (i % 7 == 0) 2 else if (i % 3 == 0) 1 else 0
-            drawRect(if (i % 3 == 0) Color(0xFF6B9E30) else Color(0xFF4E8228), Offset(x, ground - blades * pixel), Size(pixel, (2 + blades) * pixel))
-            if (i % 4 == 0) drawRect(Color(0xFF95734D), Offset(x, ground + 3 * pixel), Size(pixel, pixel))
-            if (i % 9 == 0) drawRect(Color(0xFF594535), Offset(x, ground + 4 * pixel), Size(2 * pixel, pixel))
+            drawRect(if (i % 3 == 0) highlight else lerp(highlight, groundColor, .25f), Offset(x, ground - blades * pixel), Size(pixel, (2 + blades) * pixel))
+            if (i % 4 == 0) drawRect(lerp(groundColor, highlight, .3f), Offset(x, ground + 3 * pixel), Size(pixel, pixel))
+            if (i % 9 == 0) drawRect(lerp(groundColor, Color.Black, .25f), Offset(x, ground + 4 * pixel), Size(2 * pixel, pixel))
         }
     }
 }
@@ -158,18 +185,29 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
     val validHex = hex.matches(Regex("[0-9A-Fa-f]{6}"))
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = back) { Icon(Icons.Outlined.ArrowBack, "返回") }
-            PageHeading("打造你的工作台", "外观设置")
+            AtlasIconButton(onClick = back) { AtlasIcon(Icons.Outlined.ArrowBack, "返回") }
+            AtlasTopBar("打造你的工作台", "主题与反馈")
         }
         Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Text("内置主题", style = MaterialTheme.typography.titleMedium)
+            ThemeCatalog.packs.forEach { pack ->
+                AtlasCard(onClick = { vm.update(settings.selectPack(pack.id)) }, modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = if (settings.packId == pack.id) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(32.dp).background(Color(pack.tint)))
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(pack.name, style = MaterialTheme.typography.titleMedium); Text(pack.description, style = MaterialTheme.typography.bodySmall) }
+                        if (settings.packId == pack.id) AtlasIcon(Icons.Outlined.Check, "已选中")
+                    }
+                }
+            }
             vm.saveError?.let { message ->
                 Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                TextButton(onClick = { vm.update(settings) }) { Text("重试保存") }
+                AtlasTextButton(onClick = { vm.update(settings) }) { Text("重试保存") }
             }
-            Card(Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)) {
+            AtlasCard(Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)) {
                 if (settings.textures) MinecraftLandscape(Modifier.fillMaxWidth().height(56.dp))
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("你的世界，由你定义", style = MaterialTheme.typography.titleLarge)
+                    Text("${LocalAtlasTheme.current.name} · 实时预览", style = MaterialTheme.typography.titleLarge)
                     Text("预览 · 配色、文字和面板会即时应用到应用界面。", style = MaterialTheme.typography.bodyMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Surface(color = MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small) { Text("草方块", Modifier.padding(10.dp), color = MaterialTheme.colorScheme.onPrimary) }
@@ -180,38 +218,52 @@ class AppearanceViewModel(application: Application) : AndroidViewModel(applicati
             Text("显示模式", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("light" to "明亮", "dark" to "深色", "system" to "跟随系统").forEach { (id, label) ->
-                    FilterChip(settings.mode == id, { vm.update(settings.copy(mode = id)) }, label = { Text(label) }, enabled = vm.ready)
+                    AtlasFilterChip(settings.mode == id, { vm.update(settings.copy(mode = id)) }, label = { Text(label) }, enabled = vm.ready)
                 }
             }
             Text("主题色", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("3E7E24" to "草地", "287A91" to "海洋", "955041" to "下界").forEach { (color, label) ->
-                    FilterChip(settings.accent == color, { vm.update(settings.copy(accent = color)) }, label = { Text(label) }, leadingIcon = { Box(Modifier.size(14.dp).background(Color(0xFF000000 or color.toLong(16)))) }, enabled = vm.ready)
+                    AtlasFilterChip(settings.accent == color, { vm.update(settings.copy(accent = color)) }, label = { Text(label) }, leadingIcon = { Box(Modifier.size(14.dp).background(Color(0xFF000000 or color.toLong(16)))) }, enabled = vm.ready)
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(hex, { hex = it.removePrefix("#").take(6).uppercase() }, Modifier.weight(1f), singleLine = true,
+                AtlasTextField(hex, { hex = it.removePrefix("#").take(6).uppercase() }, Modifier.weight(1f), singleLine = true,
                     label = { Text("自定义颜色") }, prefix = { Text("#") }, isError = !validHex,
                     supportingText = { Text(if (validHex) "文字对比度会自动调整" else "请输入 6 位十六进制颜色") })
-                OutlinedButton(onClick = { vm.update(settings.copy(accent = hex)) }, enabled = validHex && vm.ready) { Text("应用") }
+                AtlasOutlinedButton(onClick = { vm.update(settings.copy(accent = hex)) }, enabled = validHex && vm.ready) { Text("应用") }
             }
             HorizontalDivider()
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Text("柔和圆角", style = MaterialTheme.typography.titleMedium); Text("关闭时使用经典方块面板", style = MaterialTheme.typography.bodySmall) }
-                Switch(settings.corners, { vm.update(settings.copy(corners = it)) }, enabled = vm.ready)
+                AtlasSwitch(settings.corners, { vm.update(settings.copy(corners = it)) }, enabled = vm.ready)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Text("像素景观", style = MaterialTheme.typography.titleMedium); Text("显示天空、草地与泥土装饰", style = MaterialTheme.typography.bodySmall) }
-                Switch(settings.textures, { vm.update(settings.copy(textures = it)) }, enabled = vm.ready)
+                AtlasSwitch(settings.textures, { vm.update(settings.copy(textures = it)) }, enabled = vm.ready)
             }
             Text("应用文字大小", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(.9f to "紧凑", 1f to "标准", 1.2f to "大字").forEach { (scale, label) ->
-                    FilterChip(settings.textScale == scale, { vm.update(settings.copy(textScale = scale)) }, label = { Text(label) }, enabled = vm.ready)
+                    AtlasFilterChip(settings.textScale == scale, { vm.update(settings.copy(textScale = scale)) }, label = { Text(label) }, enabled = vm.ready)
                 }
             }
+            HorizontalDivider()
+            Text("动效与触感", style = MaterialTheme.typography.titleMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("full" to "标准动效", "reduced" to "减少动态", "off" to "关闭动效").forEach { (mode, title) ->
+                    AtlasFilterChip(settings.motion == mode, { vm.update(settings.copy(motion = mode)) }, label = { Text(title) }, enabled = vm.ready)
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Text("触感反馈", style = MaterialTheme.typography.titleMedium); Text("选择、长按和完成操作时轻反馈", style = MaterialTheme.typography.bodySmall) }
+                AtlasSwitch(settings.haptics, { vm.update(settings.copy(haptics = it)) }, enabled = vm.ready)
+            }
+            val feedback = LocalAtlasHaptics.current
+            AtlasOutlinedButton(onClick = { feedback?.emit(AtlasFeedback.Success) }, enabled = settings.haptics) { Text("体验完成反馈") }
+            Text("减少动态保留短暂淡入，关闭动效立即切换。遵循系统关闭动画和触感的设置；震感因设备而异。换主题不会重置这些偏好。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("在系统字号基础上调整。Wiki 正文保留网站的排版与主题。设置保存在本机，退出账号后仍然有效。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedButton(onClick = { vm.update(Appearance()) }, enabled = vm.ready, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.RestartAlt, null); Spacer(Modifier.width(8.dp)); Text("恢复默认 MC 外观") }
+            AtlasOutlinedButton(onClick = { vm.update(Appearance().copy(motion = settings.motion, haptics = settings.haptics)) }, enabled = vm.ready, modifier = Modifier.fillMaxWidth()) { AtlasIcon(Icons.Outlined.RestartAlt, null); Spacer(Modifier.width(8.dp)); Text("恢复默认 MC 外观") }
             Spacer(Modifier.height(12.dp))
         }
     }

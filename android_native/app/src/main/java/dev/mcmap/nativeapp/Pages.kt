@@ -39,7 +39,7 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 
-@Composable fun PageHeading(eyebrow: String, title: String, trailing: @Composable () -> Unit = {}) {
+@Composable fun AtlasTopBar(eyebrow: String, title: String, trailing: @Composable () -> Unit = {}) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -64,23 +64,23 @@ import java.util.Locale
             .sortedWith { a, b -> collator.compare(a.title, b.title) }
     }
     Column {
-        PageHeading("把探索留在地图上", "世界标记") { WorldPicker(vm.world, select = vm::changeWorld) }
+        AtlasTopBar("把探索留在地图上", "世界标记") { WorldPicker(vm.world, select = vm::changeWorld) }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { filters = !filters }) { Icon(Icons.Outlined.Menu, "显示或收起分类") }
-            OutlinedTextField(query, { query = it }, Modifier.weight(1f), placeholder = { Text("搜索名称或描述") }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, singleLine = true)
+            AtlasIconButton(onClick = { filters = !filters }) { AtlasIcon(Icons.Outlined.Menu, "显示或收起分类") }
+            AtlasTextField(query, { query = it }, Modifier.weight(1f), placeholder = { Text("搜索名称或描述") }, leadingIcon = { AtlasIcon(Icons.Outlined.Search, null) }, singleLine = true)
         }
         Spacer(Modifier.height(12.dp))
         if (filters) LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items((linkedMapOf("all" to "全部", "favorites" to "收藏") + categories).toList()) { (id, name) ->
-                    FilterChip(selected = category == id, onClick = { category = id }, label = { Text(name) })
+                    AtlasFilterChip(selected = category == id, onClick = { category = id }, label = { Text(name) })
                 }
         }
         Text("${worlds[vm.world]} · ${visible.size} 处标记", Modifier.padding(horizontal = 20.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (visible.isEmpty()) item { EmptyState(if (vm.loading) "正在加载" else "没有匹配的标记", "切换分类、维度或搜索词试试") }
                 items(visible, key = { it.id }) { marker ->
-                    OutlinedCard(onClick = { open(marker) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    AtlasCard(onClick = { open(marker) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("${marker.icon.ifBlank { "📍" }} ${marker.title}", style = MaterialTheme.typography.titleMedium)
                             Text("X ${marker.x} · Z ${marker.z}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
@@ -104,8 +104,8 @@ import java.util.Locale
         if (!vm.authBusy) { focus.clearFocus(); keyboard?.hide(); vm.login(email, password) }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeading("MC ATLAS · 探索者工作台", "我的") {
-            IconButton(onClick = { navigate("appearance") }) { Icon(Icons.Outlined.Palette, "外观设置") }
+        AtlasTopBar("MC ATLAS · 探索者工作台", "我的") {
+            AtlasIconButton(onClick = { navigate("appearance") }) { AtlasIcon(Icons.Outlined.Palette, "外观设置") }
         }
         Spacer(Modifier.height(20.dp))
         if (user == null) {
@@ -114,20 +114,20 @@ import java.util.Locale
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.small) {
-                            Icon(Icons.Outlined.PersonOutline, null, Modifier.padding(10.dp).size(28.dp), tint = MaterialTheme.colorScheme.primary)
+                            AtlasIcon(Icons.Outlined.PersonOutline, null, Modifier.padding(10.dp).size(28.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                         Column(Modifier.weight(1f)) {
                             Text("欢迎回来，探索者", style = MaterialTheme.typography.titleLarge)
                             Text("登录以收藏地点和管理地图", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    OutlinedTextField(email, { email = it; vm.clearAuthError() }, label = { Text("邮箱") }, placeholder = { Text("name@example.com") },
-                        leadingIcon = { Icon(Icons.Outlined.AlternateEmail, null) }, singleLine = true, enabled = !vm.authBusy,
+                    AtlasTextField(email, { email = it; vm.clearAuthError() }, label = { Text("邮箱") }, placeholder = { Text("name@example.com") },
+                        leadingIcon = { AtlasIcon(Icons.Outlined.AlternateEmail, null) }, singleLine = true, enabled = !vm.authBusy,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next, autoCorrectEnabled = false, capitalization = KeyboardCapitalization.None),
                         keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }), modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Username + ContentType.EmailAddress })
-                    OutlinedTextField(password, { password = it; vm.clearAuthError() }, label = { Text("密码") },
-                        leadingIcon = { Icon(Icons.Outlined.Lock, null) }, trailingIcon = {
-                            IconButton(onClick = { showPassword = !showPassword }) { Icon(if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, if (showPassword) "隐藏密码" else "显示密码") }
+                    AtlasTextField(password, { password = it; vm.clearAuthError() }, label = { Text("密码") },
+                        leadingIcon = { AtlasIcon(Icons.Outlined.Lock, null) }, trailingIcon = {
+                            AtlasIconButton(onClick = { showPassword = !showPassword }) { AtlasIcon(if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, if (showPassword) "隐藏密码" else "显示密码") }
                         }, singleLine = true, enabled = !vm.authBusy,
                         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done, autoCorrectEnabled = false),
@@ -138,30 +138,30 @@ import java.util.Locale
                     vm.authError?.let { message ->
                         Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.small) {
                             Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
+                                AtlasIcon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
                                 Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
                             }
                         }
                     }
-                    Button(onClick = submit, enabled = !vm.authBusy && email.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp), shape = MaterialTheme.shapes.small) {
+                    AtlasButton(onClick = submit, enabled = !vm.authBusy && email.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp), shape = MaterialTheme.shapes.small) {
                         if (vm.authBusy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)) }
                         Text(if (vm.authBusy) "正在连接账号…" else "登录地图账号")
-                        if (!vm.authBusy) { Spacer(Modifier.width(8.dp)); Icon(Icons.Outlined.ArrowForward, null, Modifier.size(18.dp)) }
+                        if (!vm.authBusy) { Spacer(Modifier.width(8.dp)); AtlasIcon(Icons.Outlined.ArrowForward, null, Modifier.size(18.dp)) }
                     }
                     Text("使用地图网站的邮箱与密码。Wiki 网站的账号独立管理。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
-            Card(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            AtlasCard(Modifier.padding(horizontal = 20.dp).fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                 Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.Outlined.Person, null, Modifier.size(40.dp))
+                    AtlasIcon(Icons.Outlined.Person, null, Modifier.size(40.dp))
                     Text(user.username, style = MaterialTheme.typography.headlineSmall)
                     Text(user.email)
                     Text(when (user.role) { "owner" -> "所有者"; "admin" -> "管理员"; else -> "探索者" }, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
             }
-            if (user.admin) Card(onClick = { navigate("upload") }, modifier = Modifier.padding(20.dp).fillMaxWidth()) {
-                ListItem(headlineContent = { Text("瓦片管理") }, supportingContent = { Text("上传 PNG · 新增区域或替换地图") }, leadingContent = { Icon(Icons.Outlined.CloudUpload, null) }, trailingContent = { Icon(Icons.Outlined.ChevronRight, null) })
+            if (user.admin) AtlasCard(onClick = { navigate("upload") }, modifier = Modifier.padding(20.dp).fillMaxWidth()) {
+                ListItem(headlineContent = { Text("瓦片管理") }, supportingContent = { Text("上传 PNG · 新增区域或替换地图") }, leadingContent = { AtlasIcon(Icons.Outlined.CloudUpload, null) }, trailingContent = { AtlasIcon(Icons.Outlined.ChevronRight, null) })
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -172,23 +172,23 @@ import java.util.Locale
             HorizontalDivider()
             ProfileLink("浏览历史", "继续上次的 Wiki 阅读", Icons.Outlined.History) { navigate("history") }
         }
-        if (user != null) TextButton(onClick = vm::logout, modifier = Modifier.padding(12.dp), enabled = !vm.uploadBusy) { Text("退出登录") }
+        if (user != null) AtlasTextButton(onClick = vm::logout, modifier = Modifier.padding(12.dp), enabled = !vm.uploadBusy) { Text("退出登录") }
         Text("MC Atlas ${BuildConfig.VERSION_NAME} · 你的地图，你的探索记录", Modifier.padding(24.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 @Composable private fun ProfileLink(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Surface(onClick = onClick, color = MaterialTheme.colorScheme.surface) {
-        ListItem(headlineContent = { Text(title) }, supportingContent = { Text(subtitle) }, leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) }, trailingContent = { Icon(Icons.Outlined.ChevronRight, null) })
+        ListItem(headlineContent = { Text(title) }, supportingContent = { Text(subtitle) }, leadingContent = { AtlasIcon(icon, null, tint = MaterialTheme.colorScheme.primary) }, trailingContent = { AtlasIcon(Icons.Outlined.ChevronRight, null) })
     }
 }
 @Composable fun RecordsPage(vm: AtlasViewModel, favorite: Boolean, back: () -> Unit, open: (String) -> Unit) {
     val clipboard = LocalClipboardManager.current
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = back) { Icon(Icons.Outlined.ArrowBack, "返回") }; PageHeading("探索知识库", if (favorite) "Wiki 收藏" else "浏览历史") }
+        Row(verticalAlignment = Alignment.CenterVertically) { AtlasIconButton(onClick = back) { AtlasIcon(Icons.Outlined.ArrowBack, "返回") }; AtlasTopBar("探索知识库", if (favorite) "Wiki 收藏" else "浏览历史") }
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (vm.records.isEmpty()) item { EmptyState("还没有记录", if (favorite) "登录后，在 Wiki 页面点击收藏" else "浏览 Wiki 后会自动保留最后访问的页面") }
             items(vm.records, key = { it.url }) { record ->
-                Card(Modifier.fillMaxWidth().combinedClickable(onClick = { open(record.url) }, onLongClick = { clipboard.setText(AnnotatedString(record.url)) })) {
+                AtlasCard(Modifier.fillMaxWidth().combinedClickable(onClick = { open(record.url) }, onLongClick = { clipboard.setText(AnnotatedString(record.url)) })) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(record.title.ifBlank { record.url }, maxLines = 2, style = MaterialTheme.typography.titleMedium)
                         Text(DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(record.time)), style = MaterialTheme.typography.labelSmall)
@@ -202,7 +202,7 @@ import java.util.Locale
     var editing by remember { mutableStateOf<Server?>(null) }; var dialog by remember { mutableStateOf(false) }; var address by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf<Server?>(null) }; var deletion by remember { mutableStateOf<Server?>(null) }
     Column {
-        PageHeading("与你的世界保持连接", "服务器") { FilledTonalIconButton(onClick = { editing = null; address = ""; dialog = true }, enabled = vm.servers.size < 5) { Icon(Icons.Outlined.Add, "添加服务器") } }
+        AtlasTopBar("与你的世界保持连接", "服务器") { AtlasFilledTonalIconButton(onClick = { editing = null; address = ""; dialog = true }, enabled = vm.servers.size < 5) { AtlasIcon(Icons.Outlined.Add, "添加服务器") } }
         Spacer(Modifier.height(12.dp))
         Text("前台每分钟更新 · ${vm.servers.size}/5 个服务器", Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -210,13 +210,13 @@ import java.util.Locale
             items(vm.servers.sortedByDescending { it.pinned }, key = { it.id }) { server ->
                 val frozen = server.failures >= 3
                 val good = server.lastSuccess > 0 && server.failures == 0
-                Card(Modifier.fillMaxWidth().combinedClickable(onClick = { menu = server }, onLongClick = { menu = server }), colors = CardDefaults.cardColors(containerColor = if (good) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                AtlasCard(Modifier.fillMaxWidth().combinedClickable(onClick = { menu = server }, onLongClick = { menu = server }), colors = CardDefaults.cardColors(containerColor = if (good) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(if (good) Icons.Outlined.CheckCircle else Icons.Outlined.CloudOff, null, tint = if (good) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                            AtlasIcon(if (good) Icons.Outlined.CheckCircle else Icons.Outlined.CloudOff, null, tint = if (good) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                             Spacer(Modifier.width(8.dp)); Text(server.address, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                            if (server.pinned) Icon(Icons.Outlined.PushPin, "已置顶", Modifier.size(18.dp))
-                            if (server.favorite) Icon(Icons.Outlined.StarBorder, "已收藏", Modifier.size(18.dp))
+                            if (server.pinned) AtlasIcon(Icons.Outlined.PushPin, "已置顶", Modifier.size(18.dp))
+                            if (server.favorite) AtlasIcon(Icons.Outlined.StarBorder, "已收藏", Modifier.size(18.dp))
                         }
                         if (good) {
                             Text("${server.online} / ${server.max}", style = MaterialTheme.typography.headlineLarge)
@@ -224,20 +224,20 @@ import java.util.Locale
                             if (server.players.isNotEmpty()) Text(server.players.joinToString(" · "), maxLines = 3, style = MaterialTheme.typography.bodySmall)
                         } else Text(when { frozen -> "暂时离线 · 已持续 ${((System.currentTimeMillis() - server.failedSince) / 60000).coerceAtLeast(0)} 分钟"; server.failures > 0 -> "连接失败 ${server.failures}/3 · 下一轮自动重试"; else -> "正在连接…" })
                         if (server.pinned) Row {
-                            TextButton(onClick = { vm.moveServer(server.id, -1) }) { Text("上移") }
-                            TextButton(onClick = { vm.moveServer(server.id, 1) }) { Text("下移") }
+                            AtlasTextButton(onClick = { vm.moveServer(server.id, -1) }) { Text("上移") }
+                            AtlasTextButton(onClick = { vm.moveServer(server.id, 1) }) { Text("下移") }
                         }
                     }
                 }
             }
         }
     }
-    if (dialog) AlertDialog(onDismissRequest = { dialog = false }, title = { Text(if (editing == null) "添加服务器" else "修改服务器") }, text = { OutlinedTextField(address, { address = it }, label = { Text("域名或域名:端口") }, singleLine = true) }, confirmButton = { TextButton(onClick = { vm.saveServer(address, editing?.id); dialog = false }, enabled = runCatching { Endpoint.parse(address) }.isSuccess) { Text("保存") } }, dismissButton = { TextButton(onClick = { dialog = false }) { Text("取消") } })
-    menu?.let { server -> AlertDialog(onDismissRequest = { menu = null }, title = { Text(server.address) }, text = { Column {
-        TextButton(onClick = { vm.changeServer(server.id, "pin"); menu = null }) { Text(if (server.pinned) "取消置顶" else "置顶") }
-        TextButton(onClick = { vm.changeServer(server.id, "favorite"); menu = null }) { Text(if (server.favorite) "取消收藏" else "收藏") }
-        TextButton(onClick = { editing = server; address = server.address; dialog = true; menu = null }) { Text("修改域名") }
-        TextButton(onClick = { deletion = server; menu = null }) { Text("删除") }
-    } }, confirmButton = { TextButton(onClick = { menu = null }) { Text("关闭") } }) }
-    deletion?.let { server -> AlertDialog(onDismissRequest = { deletion = null }, title = { Text("删除服务器？") }, text = { Text(server.address) }, confirmButton = { TextButton(onClick = { vm.changeServer(server.id, "delete"); deletion = null }) { Text("删除") } }, dismissButton = { TextButton(onClick = { deletion = null }) { Text("取消") } }) }
+    if (dialog) AtlasDialog(onDismissRequest = { dialog = false }, title = { Text(if (editing == null) "添加服务器" else "修改服务器") }, text = { AtlasTextField(address, { address = it }, label = { Text("域名或域名:端口") }, singleLine = true) }, confirmButton = { AtlasTextButton(onClick = { vm.saveServer(address, editing?.id); dialog = false }, enabled = runCatching { Endpoint.parse(address) }.isSuccess) { Text("保存") } }, dismissButton = { AtlasTextButton(onClick = { dialog = false }) { Text("取消") } })
+    menu?.let { server -> AtlasDialog(onDismissRequest = { menu = null }, title = { Text(server.address) }, text = { Column {
+        AtlasTextButton(onClick = { vm.changeServer(server.id, "pin"); menu = null }) { Text(if (server.pinned) "取消置顶" else "置顶") }
+        AtlasTextButton(onClick = { vm.changeServer(server.id, "favorite"); menu = null }) { Text(if (server.favorite) "取消收藏" else "收藏") }
+        AtlasTextButton(onClick = { editing = server; address = server.address; dialog = true; menu = null }) { Text("修改域名") }
+        AtlasTextButton(onClick = { deletion = server; menu = null }) { Text("删除") }
+    } }, confirmButton = { AtlasTextButton(onClick = { menu = null }) { Text("关闭") } }) }
+    deletion?.let { server -> AtlasDialog(onDismissRequest = { deletion = null }, title = { Text("删除服务器？") }, text = { Text(server.address) }, confirmButton = { AtlasTextButton(onClick = { vm.changeServer(server.id, "delete"); deletion = null }) { Text("删除") } }, dismissButton = { AtlasTextButton(onClick = { deletion = null }) { Text("取消") } }) }
 }

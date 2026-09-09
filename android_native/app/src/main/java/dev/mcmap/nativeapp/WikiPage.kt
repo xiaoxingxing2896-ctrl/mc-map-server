@@ -129,22 +129,22 @@ fun WikiPage(url: String, changeUrl: (String) -> Unit, vm: AtlasViewModel) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        PageHeading("中文 MINECRAFT WIKI", "知识图鉴") {
-            IconButton(onClick = { openBrowser(currentUrl) }, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Outlined.OpenInBrowser, "在浏览器中打开当前 Wiki 页面")
+        AtlasTopBar("中文 MINECRAFT WIKI", "知识图鉴") {
+            AtlasIconButton(onClick = { openBrowser(currentUrl) }, modifier = Modifier.size(48.dp)) {
+                AtlasIcon(Icons.Outlined.OpenInBrowser, "在浏览器中打开当前 Wiki 页面")
             }
         }
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
+        AtlasTextField(
             value = query,
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             singleLine = true,
             placeholder = { Text("搜索方块、物品、生物与教程") },
-            leadingIcon = { Icon(Icons.Outlined.MenuBook, null) },
+            leadingIcon = { AtlasIcon(Icons.Outlined.MenuBook, null) },
             trailingIcon = {
-                IconButton(onClick = ::search, enabled = query.isNotBlank(), modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Outlined.Search, "搜索中文 Minecraft Wiki")
+                AtlasIconButton(onClick = ::search, enabled = query.isNotBlank(), modifier = Modifier.size(48.dp)) {
+                    AtlasIcon(Icons.Outlined.Search, "搜索中文 Minecraft Wiki")
                 }
             },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -156,7 +156,7 @@ fun WikiPage(url: String, changeUrl: (String) -> Unit, vm: AtlasViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf("方块", "物品", "生物", "合成", "红石电路", "教程").forEach { title ->
-                    OutlinedButton(
+                    AtlasOutlinedButton(
                         onClick = { navigate(Uri.parse(WIKI_HOME).buildUpon().appendPath("w").appendPath(title).build().toString()) },
                         modifier = Modifier.heightIn(min = 48.dp),
                         shape = MaterialTheme.shapes.small,
@@ -278,18 +278,18 @@ fun WikiPage(url: String, changeUrl: (String) -> Unit, vm: AtlasViewModel) {
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(Icons.Outlined.CloudOff, null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
+                        AtlasIcon(Icons.Outlined.CloudOff, null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(16.dp))
                         Text("图鉴暂时未能加载", style = MaterialTheme.typography.titleLarge)
                         Spacer(Modifier.height(10.dp))
                         Text(message, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(20.dp))
-                        Button(onClick = { navigate(currentUrl) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                            Icon(Icons.Outlined.Refresh, null)
+                        AtlasButton(onClick = { navigate(currentUrl) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            AtlasIcon(Icons.Outlined.Refresh, null)
                             Spacer(Modifier.width(8.dp))
                             Text("重新加载")
                         }
-                        TextButton(onClick = { openBrowser(currentUrl) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("在浏览器中打开") }
+                        AtlasTextButton(onClick = { openBrowser(currentUrl) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("在浏览器中打开") }
                     }
                 }
             }
@@ -313,7 +313,7 @@ fun WikiPage(url: String, changeUrl: (String) -> Unit, vm: AtlasViewModel) {
 
 @Composable
 private fun WikiTool(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    TextButton(
+    AtlasTextButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 56.dp),
@@ -321,7 +321,7 @@ private fun WikiTool(icon: ImageVector, label: String, enabled: Boolean = true, 
         shape = MaterialTheme.shapes.small
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Icon(icon, null, Modifier.size(22.dp))
+            AtlasIcon(icon, null, Modifier.size(22.dp))
             Text(label, style = MaterialTheme.typography.labelSmall)
         }
     }

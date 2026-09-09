@@ -21,6 +21,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -74,21 +77,20 @@ class MainActivity: ComponentActivity() {
     BackHandler(subpage.isNotEmpty() || selected != null || tab != 2) {
         when { selected != null -> selected = null; subpage.isNotEmpty() -> subpage = ""; else -> tab = 2 }
     }
-    val names = listOf("服务器", "Wiki", "地图", "标记", "我的")
-    val icons = listOf(Icons.Outlined.Dns, Icons.Outlined.MenuBook, Icons.Outlined.Map, Icons.Outlined.Bookmarks, Icons.Outlined.Person)
+    val motion = LocalAtlasMotion.current
+    val feedback = LocalAtlasHaptics.current
+    var entered by remember(tab, subpage) { mutableStateOf(false) }
+    LaunchedEffect(tab, subpage) { entered = true }
+    val pageOpacity by animateFloatAsState(if (entered || motion == "off") 1f else 0f, tween(motionDuration(motion, true, 160)), label = "page enter")
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(vm.error) { vm.error?.let { snack.showSnackbar(it); vm.error = null } }
     Scaffold(modifier = Modifier.imePadding(), snackbarHost = { SnackbarHost(snack) }, bottomBar = {
       if (!WindowInsets.isImeVisible) Column {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        NavigationBar(tonalElevation = 0.dp, containerColor = MaterialTheme.colorScheme.surface) {
-            names.forEachIndexed { index, name ->
-                NavigationBarItem(selected = tab == index, onClick = { tab = index; subpage = ""; if (index == 2) vm.refresh() }, icon = { Icon(icons[index], null, Modifier.size(if (index == 2) 29.dp else 24.dp)) }, label = { Text(name, maxLines = 1) }, colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer, selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary))
-            }
-        }
+        AtlasNavigationBar(tab) { index -> tab = index; subpage = ""; if (index == 2) vm.refresh() }
       }
     }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).graphicsLayer { alpha = pageOpacity }) {
           pageState.SaveableStateProvider("$tab/$subpage") {
             when {
                 subpage == "upload" -> UploadPage(vm) { subpage = "" }
@@ -104,7 +106,7 @@ class MainActivity: ComponentActivity() {
         }
     }
     selected?.let { marker ->
-        AlertDialog(onDismissRequest = { selected = null }, title = { Text("${marker.icon.ifBlank { "📍" }} ${marker.title}") }, text = {
+        AtlasDialog(onDismissRequest = { selected = null }, title = { Text("${marker.icon.ifBlank { "📍" }} ${marker.title}") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("${worlds[marker.world] ?: marker.world}  ·  ${categories[marker.category] ?: marker.category}", color = MaterialTheme.colorScheme.primary)
                 Text("X ${marker.x}    Z ${marker.z}")
@@ -112,10 +114,10 @@ class MainActivity: ComponentActivity() {
                 Text("标记者：${marker.creator}", style = MaterialTheme.typography.labelMedium)
             }
         }, confirmButton = {
-            TextButton(onClick = { vm.changeWorld(marker.world); focusX = marker.x.toFloat(); focusZ = marker.z.toFloat(); focusSeq++; tab = 2; selected = null }) { Text("在地图中查看") }
+            AtlasTextButton(onClick = { vm.changeWorld(marker.world); focusX = marker.x.toFloat(); focusZ = marker.z.toFloat(); focusSeq++; tab = 2; selected = null }) { Text("在地图中查看") }
         }, dismissButton = { Row {
-            TextButton(onClick = { vm.favorite(marker) }) { Text(if (marker.id in vm.favorites) "取消收藏" else "收藏") }
-            TextButton(onClick = { selected = null }) { Text("关闭") }
+            AtlasTextButton(onClick = { if (vm.user != null) feedback?.emit(AtlasFeedback.Selection); vm.favorite(marker) }) { Text(if (marker.id in vm.favorites) "取消收藏" else "收藏") }
+            AtlasTextButton(onClick = { selected = null }) { Text("关闭") }
         } })
     }
 }
