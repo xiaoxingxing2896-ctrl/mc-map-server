@@ -4,13 +4,13 @@
 
 主题系统第一阶段：三套内置主题、统一组件、方块导航图标、按压/导航/页面/地图动效及系统设置优先的触感反馈。后端未改动。
 
-- 最终本地 Gradle 编译、assembleDebug、testDebugUnitTest、lintDebug 全通过（30 秒）。
+- 最终本地 Gradle 编译、assembleDebug、testDebugUnitTest、lintDebug 全通过（27 秒），包含切页淡入状态重置修正。
 - 单元测试 14 项通过：原有认证 6 项、领域 5 项、新增主题 3 项；主题测试包含三套主题的明暗模式和极端自定义强调色下的正文/按钮对比度。
 - Lint 0 错误、14 个非阻断建议（依赖更新、Uri KTX 和 Modifier 工厂形式）。
 - APK v2 调试签名验证通过；versionCode 3，minSdk 26，targetSdk 36。
-- `artifacts/MC-Atlas-debug.apk`：19,636,774 字节，SHA-256 `9604CAA1C46E3A471C5FCBE3566039B2C35E549397ABD755B46C7F03A1FCA4B0`。
+- `artifacts/MC-Atlas-debug.apk`：19,636,752 字节，SHA-256 `3244895F48175FDFCE937F0B49B6C0FECE34809D73949065AE0DA35DEA9B7BAD`。
 - USB 调试手机覆盖安装成功，启动返回 Status ok；所查 AndroidRuntime 错误日志为空。启动工具未报告冷启动耗时，不据此给出冷启动性能结论。
-- 本轮屏幕采集暂为黑屏，完整视觉、动画流畅度、真实振感及设置跨进程恢复仍需真机交互确认。尚未执行线上上传写入。
+- 本轮屏幕采集为息屏画面，设备报告 Dozing；完整视觉、动画流畅度、真实振感及新设置跨进程恢复仍需真机交互确认。尚未执行线上上传写入。
 
 此处记录本地构建结果；对应提交的云端状态见仓库 Native Android 工作流。
 

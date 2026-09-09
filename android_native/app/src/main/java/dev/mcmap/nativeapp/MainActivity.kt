@@ -81,7 +81,9 @@ class MainActivity: ComponentActivity() {
     val feedback = LocalAtlasHaptics.current
     var entered by remember(tab, subpage) { mutableStateOf(false) }
     LaunchedEffect(tab, subpage) { entered = true }
-    val pageOpacity by animateFloatAsState(if (entered || motion == "off") 1f else 0f, tween(motionDuration(motion, true, 160)), label = "page enter")
+    val pageOpacity by key(tab, subpage) {
+        animateFloatAsState(if (entered || motion == "off") 1f else 0f, tween(motionDuration(motion, true, 160)), label = "page enter")
+    }
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(vm.error) { vm.error?.let { snack.showSnackbar(it); vm.error = null } }
     Scaffold(modifier = Modifier.imePadding(), snackbarHost = { SnackbarHost(snack) }, bottomBar = {
