@@ -43,17 +43,20 @@ class MainActivity: ComponentActivity() {
                 }
             }
             AtlasTheme(appearance.settings, appearance.active.document.pack, appearance.active.resources) {
-                AtlasApp(appearance = appearance, initialPage = if (BuildConfig.DEBUG && intent.getBooleanExtra("theme_studio", false)) "studio" else "")
+                AtlasApp(appearance = appearance, initialPage = if (BuildConfig.DEBUG && intent.getBooleanExtra("theme_studio", false)) "studio" else "",
+                    initialTab = if (BuildConfig.DEBUG && intent.getStringExtra("page") == "wiki") 1 else 2,
+                    initialWikiReading = BuildConfig.DEBUG && intent.getBooleanExtra("wiki_reading", false))
             }
         }
     }
 }
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable fun AtlasApp(vm: AtlasViewModel = viewModel(), appearance: AppearanceViewModel = viewModel(), initialPage: String = "") {
-    var tab by rememberSaveable { mutableIntStateOf(2) }
+@Composable fun AtlasApp(vm: AtlasViewModel = viewModel(), appearance: AppearanceViewModel = viewModel(), initialPage: String = "", initialTab: Int = 2, initialWikiReading: Boolean = false) {
+    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
     var subpage by rememberSaveable { mutableStateOf(initialPage) }
     var selected by remember { mutableStateOf<Marker?>(null) }
     var wikiUrl by rememberSaveable { mutableStateOf("https://zh.minecraft.wiki/") }
+    var wikiReading by rememberSaveable { mutableStateOf(initialWikiReading) }
     var focusX by rememberSaveable { mutableFloatStateOf(0f) }
     var focusZ by rememberSaveable { mutableFloatStateOf(0f) }
     var focusSeq by rememberSaveable { mutableIntStateOf(0) }
@@ -89,7 +92,7 @@ class MainActivity: ComponentActivity() {
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(vm.error) { vm.error?.let { snack.showSnackbar(it); vm.error = null } }
     Scaffold(modifier = Modifier.imePadding(), snackbarHost = { SnackbarHost(snack) }, bottomBar = {
-      if (!WindowInsets.isImeVisible && subpage != "studio") Column {
+      if (!WindowInsets.isImeVisible && subpage != "studio" && !(tab == 1 && wikiReading && subpage.isEmpty())) Column {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         AtlasNavigationBar(tab) { index -> tab = index; subpage = ""; if (index == 2) vm.refresh() }
       }
@@ -102,7 +105,7 @@ class MainActivity: ComponentActivity() {
                 subpage == "studio" -> ThemeStudioPage(appearance) { subpage = "appearance" }
                 subpage == "history" || subpage == "favorites" -> RecordsPage(vm, subpage == "favorites", { subpage = "" }) { wikiUrl = it; tab = 1; subpage = "" }
                 tab == 0 -> ServersPage(vm)
-                tab == 1 -> WikiPage(wikiUrl, { wikiUrl = it }, vm)
+                tab == 1 -> WikiPage(wikiUrl, { wikiUrl = it }, vm, wikiReading) { wikiReading = it }
                 tab == 2 -> MapPage(vm, focusX, focusZ, focusSeq) { selected = it }
                 tab == 3 -> MarkersPage(vm) { selected = it }
                 else -> ProfilePage(vm) { page -> subpage = page; if (page == "upload") vm.prepareUpload() else if (page == "history" || page == "favorites") vm.loadRecords(page == "favorites") }

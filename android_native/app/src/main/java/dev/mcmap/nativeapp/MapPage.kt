@@ -2,6 +2,8 @@ package dev.mcmap.nativeapp
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
@@ -14,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -45,6 +48,8 @@ import kotlinx.coroutines.launch
     val feedback = LocalAtlasHaptics.current
     var cx by rememberSaveable { mutableFloatStateOf(0f) }; var cz by rememberSaveable { mutableFloatStateOf(0f) }
     var scale by rememberSaveable { mutableFloatStateOf(.5f) }
+    var showMarkers by rememberSaveable { mutableStateOf(true) }
+    var groupDialog by remember { mutableStateOf<List<Marker>?>(null) }
     val scope = rememberCoroutineScope()
     val motion by rememberUpdatedState(LocalAtlasMotion.current)
     var moveJob by remember { mutableStateOf<Job?>(null) }
@@ -74,8 +79,17 @@ import kotlinx.coroutines.launch
     LaunchedEffect(motion, vm.world) { moveJob?.cancel() }
     LaunchedEffect(focusSeq) { if (focusSeq > appliedFocus) { moveTo(focusX, focusZ, 1f); appliedFocus = focusSeq } }
     val density = LocalDensity.current
+    val groups = remember(vm.markers, scale, density.density) { groupMapMarkers(vm.markers, 32f * density.density / scale) }
+    val latestGroups by rememberUpdatedState(if (showMarkers) groups else emptyList())
+    LaunchedEffect(vm.world, vm.user?.token, vm.markers) { groupDialog = null }
+    fun openGroup(group: MapMarkerGroup, list: Boolean = false) {
+        feedback?.emit(if (list) AtlasFeedback.LongPress else AtlasFeedback.Selection)
+        if (group.members.size == 1) open(group.members.first())
+        else if (list || scale >= 8f || group.members.all { it.x == group.x && it.z == group.z }) groupDialog = group.members
+        else moveTo(group.members.map { it.x.toDouble() }.average().toFloat(), group.members.map { it.z.toDouble() }.average().toFloat(), (scale * 2).coerceAtMost(8f))
+    }
     val mapBackground = MaterialTheme.colorScheme.surfaceContainerHighest
-    BoxWithConstraints(Modifier.fillMaxSize().background(mapBackground)) {
+    BoxWithConstraints(Modifier.fillMaxSize().clipToBounds().background(mapBackground)) {
         val width = constraints.maxWidth.toFloat(); val height = constraints.maxHeight.toFloat()
         val x0 = cx - width / (2 * scale); val z0 = cz - height / (2 * scale)
         val x1 = cx + width / (2 * scale); val z1 = cz + height / (2 * scale)
@@ -87,16 +101,15 @@ import kotlinx.coroutines.launch
                 cz += (centroid.y - height / 2) / scale - (centroid.y - height / 2 + pan.y) / next
                 scale = next
             }
-        }.pointerInput(vm.markers, vm.user, width, height) {
+        }.pointerInput(vm.world, width, height, density.density) {
+            fun hit(p: Offset): MapMarkerGroup? = latestGroups.minByOrNull { group ->
+                (Offset((group.x - cx) * scale + width / 2, (group.z - cz) * scale + height / 2 - 19 * density.density) - p).getDistance()
+            }?.takeIf { group -> (Offset((group.x - cx) * scale + width / 2, (group.z - cz) * scale + height / 2 - 19 * density.density) - p).getDistance() <= 24 * density.density }
             detectTapGestures(onTap = { p ->
                 coordinate = "X ${(cx + (p.x - width / 2) / scale).roundToInt()}  ·  Z ${(cz + (p.y - height / 2) / scale).roundToInt()}"
-                vm.markers.minByOrNull { m -> (Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() }?.let { m ->
-                    if ((Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() < 28 * density.density) { feedback?.emit(AtlasFeedback.Selection); open(m) }
-                }
+                hit(p)?.let { openGroup(it) }
             }, onLongPress = { p ->
-                vm.markers.minByOrNull { m -> (Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() }?.let { m ->
-                    if ((Offset((m.x - cx) * scale + width / 2, (m.z - cz) * scale + height / 2) - p).getDistance() < 40 * density.density) { feedback?.emit(AtlasFeedback.LongPress); open(m) }
-                }
+                hit(p)?.let { openGroup(it, true) }
             })
         }) {
             Canvas(Modifier.fillMaxSize()) {
@@ -117,16 +130,19 @@ import kotlinx.coroutines.launch
                         modifier = Modifier.offset { IntOffset(px.roundToInt(), pz.roundToInt()) }.wrapContentSize(Alignment.TopStart, unbounded = true).requiredSize(with(density) { (1024 * scale).toDp() }))
                 }
             }
-            vm.markers.filter { it.x in x0.toInt()..x1.toInt() && it.z in z0.toInt()..z1.toInt() }.forEach { marker ->
-                Text(marker.icon.ifBlank { "📍" }, color = Color.White, modifier = Modifier.offset { IntOffset(((marker.x - cx) * scale + width / 2 - 12 * density.density).roundToInt(), ((marker.z - cz) * scale + height / 2 - 12 * density.density).roundToInt()) }, style = MaterialTheme.typography.headlineSmall)
+            if (showMarkers) groups.filter { it.x >= x0 - 32 * density.density / scale && it.x <= x1 + 32 * density.density / scale && it.z >= z0 && it.z <= z1 + 32 * density.density / scale }.forEach { group ->
+                key(group.members.first().id) {
+                    MapMarkerPin(group, Modifier.offset { IntOffset(((group.x - cx) * scale + width / 2 - 11 * density.density).roundToInt(), ((group.z - cz) * scale + height / 2 - 30 * density.density).roundToInt()) }) { openGroup(group) }
+                }
             }
         }
         Row(Modifier.align(Alignment.TopStart).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             WorldPicker(vm.world, select = vm::changeWorld)
             AtlasFilledIconButton(onClick = { moveTo(0f, 0f, .5f); vm.refresh() }) { AtlasIcon(Icons.Outlined.Refresh, "刷新并回到原点") }
+            AtlasFilledTonalIconButton(onClick = { showMarkers = !showMarkers }) { AtlasIcon(if (showMarkers) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff, if (showMarkers) "隐藏地图标记" else "显示地图标记") }
         }
         Surface(Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 16.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface.copy(alpha = .95f)) {
-            Text("${vm.tiles.size} 张瓦片 · ${vm.markers.size} 处标记", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
+            Text(if (showMarkers) "${vm.markers.size} 处 · ${groups.size} 组" else "标记已隐藏", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
         }
         Column(Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             AtlasFilledTonalIconButton(onClick = { moveTo(cx, cz, (scale * 2).coerceAtMost(8f)) }) { AtlasIcon(Icons.Outlined.Add, "放大地图") }
@@ -138,6 +154,17 @@ import kotlinx.coroutines.launch
         }
         if (vm.loading) LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
         if (!vm.loading && vm.tiles.isEmpty()) Surface(Modifier.align(Alignment.Center).padding(24.dp), shape = MaterialTheme.shapes.medium) { Text("暂无地图瓦片\n可切换维度或点击刷新", modifier = Modifier.padding(20.dp)) }
+    }
+    groupDialog?.let { members ->
+        AtlasDialog(onDismissRequest = { groupDialog = null }, title = { Text("此处有 ${members.size} 个标记") }, text = {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                members.forEach { marker ->
+                    AtlasOutlinedButton({ groupDialog = null; open(marker) }, Modifier.fillMaxWidth()) {
+                        Column { Text(marker.title); Text("${categories[marker.category] ?: "其他"} · X ${marker.x} · Z ${marker.z}", style = MaterialTheme.typography.labelSmall) }
+                    }
+                }
+            }
+        }, confirmButton = { AtlasTextButton({ groupDialog = null }) { Text("关闭") } })
     }
     if (jump) AtlasDialog(onDismissRequest = { jump = false }, title = { Text("前往坐标") }, text = { Column {
         AtlasTextField(jumpX, { jumpX = it }, label = { Text("X") }, singleLine = true)
