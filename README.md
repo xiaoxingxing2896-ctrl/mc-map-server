@@ -7,6 +7,8 @@
 
 原生 Android 地图客户端的功能、构建与管理员瓦片上传说明见 [android_native/README.md](android_native/README.md)。旧 Flutter 客户端保留在 `mobile_app/`。
 
+原生 2.3.2 优化反复缩放时的瓦片缓存复用与总览解码内存；标记跳转保留当前比例、精确居中并显示目标准星。修复详情、验证结果与手动回归步骤见 [Android 验证记录](android_native/VERIFICATION.md)。
+
 原生 2.1 界面采用 Minecraft 方块风格，支持持久化主题、配色、圆角、纹理与字号设置，Wiki 直接接入 [中文 Minecraft Wiki](https://zh.minecraft.wiki/)，并完善密码输入、认证提示和客户端会话处理。
 
 2026-09-08，原生客户端与管理员瓦片接口提交 `b7092ce` 已推送到 `main`，现有 Worker 已部署，原生 Android、后端与 Flutter CI 均通过。线上读取和手机安装启动的实际结果及未验证范围见 [构建与部署验证记录](android_native/VERIFICATION.md)。

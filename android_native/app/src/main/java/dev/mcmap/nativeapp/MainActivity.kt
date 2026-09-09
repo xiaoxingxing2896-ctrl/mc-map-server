@@ -57,8 +57,8 @@ class MainActivity: ComponentActivity() {
     var selected by remember { mutableStateOf<Marker?>(null) }
     var wikiUrl by rememberSaveable { mutableStateOf("https://zh.minecraft.wiki/") }
     var wikiReading by rememberSaveable { mutableStateOf(initialWikiReading) }
-    var focusX by rememberSaveable { mutableFloatStateOf(0f) }
-    var focusZ by rememberSaveable { mutableFloatStateOf(0f) }
+    var focusX by rememberSaveable { mutableStateOf(0.0) }
+    var focusZ by rememberSaveable { mutableStateOf(0.0) }
     var focusSeq by rememberSaveable { mutableIntStateOf(0) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val pageState = rememberSaveableStateHolder()
@@ -122,7 +122,7 @@ class MainActivity: ComponentActivity() {
                 Text("标记者：${marker.creator}", style = MaterialTheme.typography.labelMedium)
             }
         }, confirmButton = {
-            AtlasTextButton(onClick = { vm.changeWorld(marker.world); focusX = marker.x.toFloat(); focusZ = marker.z.toFloat(); focusSeq++; tab = 2; selected = null }) { Text("在地图中查看") }
+            AtlasTextButton(onClick = { vm.changeWorld(marker.world); focusX = marker.x.toDouble(); focusZ = marker.z.toDouble(); focusSeq++; tab = 2; selected = null }) { Text("在地图中查看") }
         }, dismissButton = { Row {
             AtlasTextButton(onClick = { if (vm.user != null) feedback?.emit(AtlasFeedback.Selection); vm.favorite(marker) }) { Text(if (marker.id in vm.favorites) "取消收藏" else "收藏") }
             AtlasTextButton(onClick = { selected = null }) { Text("关闭") }

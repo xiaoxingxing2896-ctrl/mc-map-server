@@ -33,6 +33,12 @@ internal class SessionChanges {
 
 class AtlasViewModel(app: Application): AndroidViewModel(app) {
     val api = Api(app)
+    // Keep decoded tiles across page changes; only fetching uses the concurrency limit.
+    val mapImageLoader = coil.ImageLoader.Builder(app).okHttpClient(api.client.newBuilder()
+        .dispatcher(okhttp3.Dispatcher().apply { maxRequests = 3; maxRequestsPerHost = 3 }).build())
+        .memoryCache { coil.memory.MemoryCache.Builder(app).maxSizePercent(.20).build() }
+        .build()
+    override fun onCleared() { mapImageLoader.shutdown(); super.onCleared() }
     private val store = LocalStore(app)
     var user by mutableStateOf<User?>(null); private set
     var world by mutableStateOf("overworld"); private set

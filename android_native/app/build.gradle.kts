@@ -10,8 +10,8 @@ android {
         applicationId = "dev.mcmap.nativeapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.3.1"
+        versionCode = 6
+        versionName = "2.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE", "\"https://mmap.worldeternal.xyz\"")
     }
