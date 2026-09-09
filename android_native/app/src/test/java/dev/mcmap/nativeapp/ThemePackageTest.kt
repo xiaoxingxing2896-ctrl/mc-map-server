@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 
 class ThemePackageTest {
     @Test fun publishedExampleUsesSupportedFormat() {
@@ -69,9 +70,11 @@ class ThemePackageTest {
             val colors = resolveThemeColors(Appearance(accent = base.accent), dark, pack)
             assertTrue(contrast(colors.onBackground, colors.background) >= 4.5f)
             assertTrue(contrast(colors.primary, colors.background) >= 4.5f)
-            val alpha = safeTextureOpacity(.15f, colors.background, listOf(colors.onBackground))
-            assertTrue(contrast(colors.onBackground, androidx.compose.ui.graphics.lerp(colors.background, Color.Black, alpha)) >= 4.5f)
-            assertTrue(contrast(colors.onBackground, androidx.compose.ui.graphics.lerp(colors.background, Color.White, alpha)) >= 4.5f)
+            val alpha = safeTextureOpacity(.15f, colors.background, listOf(colors.onBackground, colors.primary))
+            for (foreground in listOf(colors.onBackground, colors.primary)) {
+                assertTrue(contrast(foreground, Color.Black.copy(alpha = alpha).compositeOver(colors.background)) >= 4.5f)
+                assertTrue(contrast(foreground, Color.White.copy(alpha = alpha).compositeOver(colors.background)) >= 4.5f)
+            }
         }
     }
 }

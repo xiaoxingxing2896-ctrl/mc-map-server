@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
@@ -61,7 +62,7 @@ fun contrast(a: Color, b: Color): Float = (maxOf(a.luminance(), b.luminance()) +
 fun safeTextureOpacity(requested: Float, background: Color, foregrounds: List<Color>): Float {
     for (step in 15 downTo 0) {
         val alpha = minOf(requested, step / 100f)
-        if (foregrounds.all { contrast(it, lerp(background, Color.Black, alpha)) >= 4.5f && contrast(it, lerp(background, Color.White, alpha)) >= 4.5f }) return alpha
+        if (foregrounds.all { contrast(it, Color.Black.copy(alpha = alpha).compositeOver(background)) >= 4.5f && contrast(it, Color.White.copy(alpha = alpha).compositeOver(background)) >= 4.5f }) return alpha
     }
     return 0f
 }
