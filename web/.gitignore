@@ -4,3 +4,6 @@ dist/
 .env
 .DS_Store
 npm-debug.log*
+# 仓库根 .gitignore 的 "data/" 会忽视任意层级同名目录，这里显式放行 web 自己的数据目录
+!src/data/
+!src/data/**
