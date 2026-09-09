@@ -1,0 +1,15 @@
+---
+import fs from 'node:fs';
+import BaseLayout from '../layouts/BaseLayout.astro';
+// Render the actual map application directly, retaining all scripts, IDs and API paths.
+// No iframe or mock map: the source remains public/index.html for upstream updates.
+const source = fs.readFileSync(new URL('../../../public/index.html', import.meta.url), 'utf8');
+const head = source.split('<head>')[1].split('</head>')[0].replace(/<meta[^>]*>/g, '').replace(/<title>[\s\S]*?<\/title>/, '');
+const body = source.split('<body>')[1].split('</body>')[0];
+---
+<BaseLayout title="地图首页" map>
+  <Fragment slot="head" set:html={head} />
+  <link slot="head" rel="stylesheet" href="/map-theme.css" />
+  <section class="map-workspace" aria-label="Minecraft 世界地图"><Fragment set:html={body} /></section>
+  <script is:inline src="/map-integration.js"></script>
+</BaseLayout>

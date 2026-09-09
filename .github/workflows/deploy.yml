@@ -1,4 +1,4 @@
-# 推送 worker/** 或 public/** 到 main 后，自动部署到 Cloudflare Workers
+# 推送 worker/**、web/** 或 public/** 到 main 后，自动部署到 Cloudflare Workers
 name: Deploy Worker to Cloudflare
 
 on:
@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'worker/**'
+      - 'web/**'
       - 'public/**'
   workflow_dispatch: # 也支持在 GitHub 页面手动触发
 
@@ -20,6 +21,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      # 网站整合版（web/）构建：worker/wrangler.toml 的 [assets].directory 指向 ../web/dist，
+      # dist 不进 Git，必须在全新 checkout 中先生成，否则 wrangler deploy 无静态资源可上传
+      - name: Build website (web/dist)
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
 
       # 首次运行：若 wrangler.toml 中 database_id 仍是占位符，自动创建 D1 并写入
       - name: Ensure D1 database

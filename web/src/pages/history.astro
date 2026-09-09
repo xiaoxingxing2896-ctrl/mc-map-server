@@ -1,0 +1,21 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getHistory } from '../data/history';
+const records = getHistory();
+---
+<BaseLayout title="历程记录">
+  <div class="page-heading"><span class="section-tag">THE WORLD WE BUILT</span><h1>存档里的每一步。</h1><p>从第一块方块，到下一座生电工程。记录建设，记录相遇。</p></div>
+  <div class="content">{records.length ? <div class="timeline">{records.map(item => <article class="timeline-item"><div class="card">{item.image && <button class="history-photo" data-image={item.image} data-title={item.title} data-date={item.date} data-authors={item.authors.join('、')} aria-label={`放大查看：${item.title}`}><img src={item.image} alt={item.title} loading="lazy" /></button>}<div class="history-info"><time datetime={item.date}>{item.date}</time><h2>{item.title}</h2>{item.description && <p>{item.description}</p>}<div class="authors" aria-label="参与者">{item.authors.map(author => <span>{author}</span>)}</div></div></div></article>)}</div> : <div class="card empty"><div class="empty-symbol">◷</div><h2>故事，正在发生。</h2><p>历程记录整理中，未来在这里重温共同建设的时光。</p><a class="action" href="/">先去世界里看看 ↗</a></div>}</div>
+  <dialog class="lightbox" id="historyLightbox" aria-label="历程图片"><div class="lightbox-controls"><button id="previousImage" aria-label="上一张图片">← 上一张</button><button id="closeImage" autofocus>关闭 ×</button><button id="nextImage" aria-label="下一张图片">下一张 →</button></div><img id="fullImage" alt="" /><p class="lightbox-caption" id="imageCaption"></p></dialog>
+  <script>
+    const dialog = document.getElementById('historyLightbox') as HTMLDialogElement;
+    const cards = [...document.querySelectorAll<HTMLButtonElement>('.history-photo')]; let active = 0;
+    function show(index: number) { active = (index + cards.length) % cards.length; const data = cards[active].dataset; const image = document.getElementById('fullImage') as HTMLImageElement; image.src = data.image!; image.alt = data.title!; document.getElementById('imageCaption')!.textContent = `${data.title} · ${data.date} · ${data.authors}`; }
+    cards.forEach((card,index) => card.addEventListener('click', () => { show(index); dialog.showModal(); }));
+    document.getElementById('closeImage')?.addEventListener('click', () => dialog.close());
+    document.getElementById('previousImage')?.addEventListener('click', () => show(active-1));
+    document.getElementById('nextImage')?.addEventListener('click', () => show(active+1));
+    dialog.addEventListener('keydown', event => { if (event.key === 'ArrowLeft') show(active-1); if (event.key === 'ArrowRight') show(active+1); });
+    dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+  </script>
+</BaseLayout>

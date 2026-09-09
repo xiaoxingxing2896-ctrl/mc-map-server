@@ -1,0 +1,396 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+const initialMode = Astro.url.searchParams.get('mode') || '';
+const nextParam = Astro.url.searchParams.get('next') || '';
+const emailParam = Astro.url.searchParams.get('email') || '';
+---
+<BaseLayout title="账号">
+  <div class="page-heading">
+    <span class="section-tag">ACCOUNT</span>
+    <h1>账号入口</h1>
+    <p>登录与注册合并为这一个入口。登录状态、角色权限与邮箱验证和世界地图完全一致：登录成功后自动返回地图，继续添加与编辑你的标注。</p>
+  </div>
+  <div class="content">
+    <article class="card auth-card" id="authCard" data-mode={initialMode} data-next={nextParam} data-email={emailParam}>
+      <!-- 登录 -->
+      <section class="auth-sec" id="secLogin">
+        <h2>登录</h2>
+        <p class="auth-hint">登录后即可在地图上添加、编辑标注，管理你的账号。</p>
+        <form id="loginForm" novalidate>
+          <div class="form-group"><label for="loginEmail">邮箱</label><input type="email" id="loginEmail" autocomplete="email" placeholder="your@example.com" /></div>
+          <div class="form-group"><label for="loginPass">密码</label><input type="password" id="loginPass" autocomplete="current-password" placeholder="输入密码" /></div>
+          <p class="form-error" id="loginError" role="alert" hidden></p>
+          <div class="form-actions"><button type="button" class="ghost" id="toForgotBtn">忘记密码？</button><button type="submit" class="action submit" id="loginSubmitBtn">登录 <span aria-hidden="true">↗</span></button></div>
+          <p class="auth-switch">还没有账号？<button type="button" class="linklike" data-go="register">去注册</button>　·　<a href="/">先回地图看看</a></p>
+        </form>
+      </section>
+      <!-- 注册 -->
+      <section class="auth-sec" id="secRegister" hidden>
+        <h2>注册</h2>
+        <p class="auth-hint">注册后需验证邮箱即可登录使用（与地图站同一套账号体系）。</p>
+        <form id="registerForm" novalidate>
+          <div class="form-group"><label for="regUser">用户名</label><input type="text" id="regUser" autocomplete="username" placeholder="输入用户名" /></div>
+          <div class="form-group"><label for="regPass">密码</label><input type="password" id="regPass" autocomplete="new-password" placeholder="至少 8 位，含大小写字母和数字" /></div>
+          <div class="form-group"><label for="regEmail">邮箱（必填）</label><input type="email" id="regEmail" autocomplete="email" placeholder="your@example.com" /></div>
+          <div class="cf-turnstile" hidden></div>
+          <p class="form-error" id="regError" role="alert" hidden></p>
+          <div class="form-actions"><button type="submit" class="action submit">注册</button></div>
+          <p class="auth-switch">已有账号？<button type="button" class="linklike" data-go="login">去登录</button></p>
+        </form>
+      </section>
+      <!-- 验证邮箱 -->
+      <section class="auth-sec" id="secVerify" hidden>
+        <h2>验证邮箱</h2>
+        <p class="auth-hint">输入注册邮箱与收到的 6 位验证码，完成邮箱验证后即可登录。</p>
+        <form id="verifyForm" novalidate>
+          <div class="form-group"><label for="verEmail">邮箱</label><input type="email" id="verEmail" autocomplete="email" placeholder="your@example.com" /></div>
+          <div class="form-group"><label for="verCode">验证码</label><div class="code-row"><input type="text" id="verCode" inputmode="numeric" maxlength="8" placeholder="6 位验证码" /><button type="button" class="ghost" id="verSendBtn">获取验证码</button></div></div>
+          <div class="cf-turnstile" hidden></div>
+          <p class="form-error" id="verError" role="alert" hidden></p>
+          <div class="form-actions"><button type="button" class="ghost" id="verBackBtn">返回登录</button><button type="submit" class="action submit">验证邮箱</button></div>
+        </form>
+      </section>
+      <!-- 忘记密码 -->
+      <section class="auth-sec" id="secForgot" hidden>
+        <h2>重置密码</h2>
+        <p class="auth-hint">输入邮箱获取验证码，再设置新密码。</p>
+        <form id="forgotForm" novalidate>
+          <div class="form-group"><label for="fgEmail">邮箱</label><input type="email" id="fgEmail" autocomplete="email" placeholder="your@example.com" /></div>
+          <div class="form-group"><label for="fgCode">验证码</label><div class="code-row"><input type="text" id="fgCode" inputmode="numeric" maxlength="8" placeholder="6 位验证码" /><button type="button" class="ghost" id="fgSendBtn">获取验证码</button></div></div>
+          <div class="form-group"><label for="fgPass">新密码</label><input type="password" id="fgPass" autocomplete="new-password" placeholder="至少 8 位，含大小写字母和数字" /></div>
+          <div class="cf-turnstile" hidden></div>
+          <p class="form-error" id="fgError" role="alert" hidden></p>
+          <div class="form-actions"><button type="button" class="ghost" id="fgBackBtn">返回登录</button><button type="submit" class="action submit">重置密码</button></div>
+        </form>
+      </section>
+      <!-- 已登录 -->
+      <section class="auth-sec" id="secProfile" hidden>
+        <h2>欢迎回来</h2>
+        <p class="profile-user" id="profileUser"></p>
+        <p class="auth-hint" id="profileHint">登录状态与地图一致。可回到地图添加标注、查看私有标注；修改用户名 / 密码与“用户管理”入口仍在世界地图页的账号菜单中（右上角 ⚙️）。</p>
+        <div class="profile-actions">
+          <a class="action" href="/">返回地图 <span aria-hidden="true">↗</span></a>
+          <button type="button" class="ghost" id="logoutBtn">退出登录</button>
+        </div>
+        <p class="form-error" id="profileError" role="alert" hidden></p>
+      </section>
+    </article>
+  </div>
+</BaseLayout>
+
+<script>
+  const card = document.getElementById('authCard') as HTMLElement;
+  const next = (card.dataset.next || '/').startsWith('/') ? card.dataset.next! : '/';
+  const TURNSTILE_SITE_KEY = '0x4AAAAAAEaCtMNdUOErOfPT'; // 与地图页一致（公开值）
+  const K = { token: 'mcmap_token', user: 'mcmap_user', role: 'mcmap_role' };
+  const sections: Record<string, HTMLElement> = {
+    login: document.getElementById('secLogin')!,
+    register: document.getElementById('secRegister')!,
+    verify: document.getElementById('secVerify')!,
+    forgot: document.getElementById('secForgot')!,
+    profile: document.getElementById('secProfile')!,
+  };
+  let current: string | null = null;
+  let busy = false;
+
+  function esc(v: string) { const d = document.createElement('div'); d.textContent = v; return d.innerHTML; }
+  function err(id: string, msg: string) { const el = document.getElementById(id) as HTMLElement; el.classList.remove('ok'); if (!msg) { el.hidden = true; el.textContent = ''; return; } el.textContent = msg; el.hidden = false; }
+  function okMsg(el: HTMLElement, msg: string) { el.classList.remove('ok'); el.textContent = msg; el.hidden = false; el.classList.add('ok'); }
+  function isStrongPassword(p: string) { return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(p || ''); }
+
+  function show(name: string) {
+    if (current === name) return;
+    cleanupTurnstile();
+    current = name;
+    for (const [k, el] of Object.entries(sections)) el.hidden = k !== name;
+    err('loginError', ''); err('regError', ''); err('verError', ''); err('fgError', ''); err('profileError', '');
+    const email = (card.dataset.email || '').trim();
+    if (name === 'verify' && email) (document.getElementById('verEmail') as HTMLInputElement).value = email;
+    document.getElementById('verEmail')?.removeAttribute('disabled');
+    document.getElementById('fgEmail')?.removeAttribute('disabled');
+  }
+
+  // ---------- Turnstile（与地图页同样的显式渲染方式） ----------
+  function loadTurnstile(): Promise<void> {
+    if ((window as any).turnstile) return Promise.resolve();
+    return new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => resolve(); // 加载失败时跳过（本地/离线环境后端可关验证）
+      document.head.appendChild(s);
+    });
+  }
+  function cleanupTurnstile() {
+    if (!(window as any).turnstile) return;
+    document.querySelectorAll('.cf-turnstile').forEach((el) => {
+      const e = el as HTMLElement;
+      if (e.dataset.rendered) { try { (window as any).turnstile.remove(e); } catch { /* 忽略 */ } delete e.dataset.rendered; }
+      e.hidden = true;
+    });
+  }
+  function refreshWidget(section: HTMLElement) {
+    if (!TURNSTILE_SITE_KEY) return;
+    const el = section.querySelector('.cf-turnstile') as HTMLElement | null;
+    if (!el || !(window as any).turnstile) return;
+    const inputs = [...section.querySelectorAll<HTMLInputElement>('input')];
+    const filled = inputs.length > 0 && inputs.every((i) => i.value.trim() !== '');
+    if (filled && !el.dataset.rendered) {
+      el.hidden = false;
+      try { (window as any).turnstile.render(el, { sitekey: TURNSTILE_SITE_KEY }); el.dataset.rendered = '1'; } catch { /* 重复渲染保护 */ }
+    } else if (!filled) {
+      el.hidden = true;
+    }
+  }
+  async function ensureToken(section: HTMLElement, id: string): Promise<string | null> {
+    if (!TURNSTILE_SITE_KEY) return '';
+    const t = (window as any).turnstile;
+    let cur = '';
+    try { cur = t ? t.getResponse() : ''; } catch { cur = ''; }
+    if (cur) return cur;
+    const el = section.querySelector('.cf-turnstile') as HTMLElement | null;
+    if (t && el) {
+      el.hidden = false;
+      if (!el.dataset.rendered) { try { t.render(el, { sitekey: TURNSTILE_SITE_KEY }); el.dataset.rendered = '1'; } catch { /* 忽略 */ } }
+    }
+    err(id, '请先完成人机验证，再点一次');
+    return null;
+  }
+
+  // ---------- API ----------
+  async function api(path: string, opts: RequestInit = {}) {
+    const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+    let d: any = null;
+    try { d = await r.json(); } catch { d = {}; }
+    if (!r.ok) { const e = new Error(d.error || ('请求失败（' + r.status + '）')) as Error & { needVerify?: boolean }; e.needVerify = !!d.needVerify; throw e; }
+    return d;
+  }
+  function applyLogin(d: { token: string; username: string; role: string }) {
+    localStorage.setItem(K.token, d.token);
+    localStorage.setItem(K.user, d.username);
+    localStorage.setItem(K.role, d.role);
+  }
+  function clearLogin() {
+    localStorage.removeItem(K.token); localStorage.removeItem(K.user); localStorage.removeItem(K.role);
+  }
+  async function redirectAfterLogin() {
+    if (next && next !== '/account/' && next !== '/account') { location.href = next; return; }
+    location.href = '/';
+  }
+  function setBusy(btn: HTMLButtonElement | null, on: boolean, busyText = '处理中…') {
+    if (!btn) return;
+    if (on) { if (!btn.dataset.label) btn.dataset.label = btn.textContent || ''; btn.textContent = busyText; btn.disabled = true; }
+    else { btn.textContent = btn.dataset.label || btn.textContent || ''; btn.disabled = false; }
+  }
+
+  async function onLogin(e: Event) {
+    e.preventDefault();
+    if (busy) return;
+    const em = (document.getElementById('loginEmail') as HTMLInputElement).value.trim();
+    const pw = (document.getElementById('loginPass') as HTMLInputElement).value;
+    if (!em || !pw) return err('loginError', '请填写邮箱和密码');
+    busy = true;
+    const btn = document.getElementById('loginSubmitBtn') as HTMLButtonElement | null;
+    setBusy(btn, true, '登录中…');
+    try {
+      const d = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: em, password: pw }) });
+      applyLogin(d);
+      err('loginError', '');
+      if (btn) { btn.textContent = '登录成功，返回地图…'; }
+      setTimeout(redirectAfterLogin, 650);
+    } catch (e2) { setBusy(btn, false); err('loginError', (e2 as Error).message); busy = false; }
+  }
+
+  async function onRegister(e: Event) {
+    e.preventDefault();
+    if (busy) return;
+    const u = (document.getElementById('regUser') as HTMLInputElement).value.trim();
+    const pw = (document.getElementById('regPass') as HTMLInputElement).value;
+    const em = (document.getElementById('regEmail') as HTMLInputElement).value.trim();
+    if (!u || !pw || !em) return err('regError', '请填写完整信息（邮箱必填）');
+    if (!isStrongPassword(pw)) return err('regError', '密码需 8 位以上，且含大小写字母和数字');
+    const token = await ensureToken(sections.register, 'regError');
+    if (token === null) return;
+    busy = true;
+    const btn = sections.register.querySelector('.submit') as HTMLButtonElement | null;
+    setBusy(btn, true, '注册中…');
+    try {
+      const d = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ username: u, password: pw, email: em, turnstile: token }) });
+      card.dataset.email = em;
+      err('regError', '');
+      setBusy(btn, false); busy = false;
+      show('verify');
+      err('verError', '');
+      okMsg(document.getElementById('verError')!, d.message || d.error || '注册成功，请验证邮箱后登录');
+    } catch (e2) { setBusy(btn, false); busy = false; if ((e2 as any).needVerify) { card.dataset.email = em; show('verify'); return; } err('regError', (e2 as Error).message); }
+  }
+
+  async function sendCode(secName: 'verify' | 'forgot', btnId: string, errId: string) {
+    if (busy) return;
+    const section = sections[secName];
+    const em = (section.querySelector('input[type="email"]') as HTMLInputElement).value.trim();
+    if (!em) return err(errId, '请先输入邮箱');
+    const token = await ensureToken(section, errId);
+    if (token === null) return;
+    busy = true;
+    const btn = document.getElementById(btnId) as HTMLButtonElement | null;
+    setBusy(btn, true, '发送中…');
+    try {
+      const d = await api('/api/auth/email/code', { method: 'POST', body: JSON.stringify({ email: em, purpose: secName === 'verify' ? 'register' : 'reset', turnstile: token }) });
+      setBusy(btn, false);
+      err(errId, '');
+      startCooldown(btn, d.retryAfter || 60);
+      okMsg(document.getElementById(errId)!, d.message || '验证码已发送，请查收邮件');
+    } catch (e2) { setBusy(btn, false); err(errId, (e2 as Error).message); }
+    finally { busy = false; }
+  }
+  function startCooldown(btn: HTMLButtonElement, secs: number) {
+    let n = Math.max(1, secs | 0);
+    const label = btn.dataset.label || '获取验证码';
+    btn.disabled = true; btn.textContent = n + ' 秒后重试';
+    const iv = setInterval(() => {
+      n--;
+      if (n <= 0) { clearInterval(iv); btn.disabled = false; btn.textContent = label; }
+      else btn.textContent = n + ' 秒后重试';
+    }, 1000);
+  }
+
+  async function onVerify(e: Event) {
+    e.preventDefault();
+    if (busy) return;
+    const em = (document.getElementById('verEmail') as HTMLInputElement).value.trim();
+    const code = (document.getElementById('verCode') as HTMLInputElement).value.trim();
+    if (!em || !code) return err('verError', '请填写邮箱和验证码');
+    const token = await ensureToken(sections.verify, 'verError');
+    if (token === null) return;
+    busy = true;
+    const btn = sections.verify.querySelector('.submit') as HTMLButtonElement | null;
+    setBusy(btn, true, '验证中…');
+    try {
+      await api('/api/auth/verify-email', { method: 'POST', body: JSON.stringify({ email: em, code, turnstile: token }) });
+      setBusy(btn, false); busy = false;
+      show('login');
+      okMsg(document.getElementById('loginError')!, '邮箱验证成功，请登录');
+    } catch (e2) { setBusy(btn, false); busy = false; err('verError', (e2 as Error).message); }
+  }
+
+  async function onForgot(e: Event) {
+    e.preventDefault();
+    if (busy) return;
+    const em = (document.getElementById('fgEmail') as HTMLInputElement).value.trim();
+    const code = (document.getElementById('fgCode') as HTMLInputElement).value.trim();
+    const np = (document.getElementById('fgPass') as HTMLInputElement).value;
+    if (!em || !code || !np) return err('fgError', '请填写完整信息');
+    if (!isStrongPassword(np)) return err('fgError', '密码需 8 位以上，且含大小写字母和数字');
+    const token = await ensureToken(sections.forgot, 'fgError');
+    if (token === null) return;
+    busy = true;
+    const btn = sections.forgot.querySelector('.submit') as HTMLButtonElement | null;
+    setBusy(btn, true, '重置中…');
+    try {
+      await api('/api/auth/reset', { method: 'POST', body: JSON.stringify({ email: em, code, newPassword: np, turnstile: token }) });
+      setBusy(btn, false); busy = false;
+      show('login');
+      okMsg(document.getElementById('loginError')!, '密码已重置，请重新登录');
+    } catch (e2) { setBusy(btn, false); busy = false; err('fgError', (e2 as Error).message); }
+  }
+
+  async function onLogout() {
+    if (busy) return;
+    busy = true;
+    clearLogin();
+    busy = false;
+    show('login');
+    okMsg(document.getElementById('loginError')!, '已退出登录');
+  }
+
+  // ---------- 已登录状态 ----------
+  async function refreshProfile() {
+    const token = localStorage.getItem(K.token);
+    if (!token) return false;
+    try {
+      const me = await api('/api/me', { headers: { Authorization: 'Bearer ' + token } });
+      localStorage.setItem(K.user, me.username);
+      localStorage.setItem(K.role, me.role);
+      const el = document.getElementById('profileUser') as HTMLElement;
+      el.innerHTML = '<span class="profile-emoji">' + (me.role === 'owner' ? '👑' : me.role === 'admin' ? '🛡️' : '👤') + '</span><strong>' + esc(me.username) + '</strong><span class="profile-role">' + esc(me.role) + '</span>';
+      show('profile');
+      return true;
+    } catch {
+      clearLogin();
+      return false;
+    }
+  }
+
+  // ---------- 事件绑定与初始状态 ----------
+  document.getElementById('loginForm')!.addEventListener('submit', onLogin);
+  document.getElementById('registerForm')!.addEventListener('submit', onRegister);
+  document.getElementById('verifyForm')!.addEventListener('submit', onVerify);
+  document.getElementById('forgotForm')!.addEventListener('submit', onForgot);
+  document.getElementById('toForgotBtn')!.addEventListener('click', () => show('forgot'));
+  document.getElementById('verSendBtn')!.addEventListener('click', () => sendCode('verify', 'verSendBtn', 'verError'));
+  document.getElementById('fgSendBtn')!.addEventListener('click', () => sendCode('forgot', 'fgSendBtn', 'fgError'));
+  document.getElementById('verBackBtn')!.addEventListener('click', () => show('login'));
+  document.getElementById('fgBackBtn')!.addEventListener('click', () => show('login'));
+  document.getElementById('logoutBtn')!.addEventListener('click', onLogout);
+  document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => show((b as HTMLElement).dataset.go!)));
+  ['registerForm', 'verifyForm', 'forgotForm'].forEach((id) => {
+    const f = document.getElementById(id)!;
+    f.querySelectorAll('input').forEach((i) => i.addEventListener('input', () => {
+      err(id.replace('Form', '') + 'Error', '');
+      refreshWidget(f.closest('.auth-sec') as HTMLElement);
+    }));
+  });
+  document.getElementById('loginForm')!.querySelectorAll('input').forEach((i) => i.addEventListener('input', () => err('loginError', '')));
+
+  loadTurnstile().then(async () => {
+    const loggedIn = await refreshProfile();
+    const wanted = loggedIn ? 'profile' : (['login', 'register', 'forgot', 'verify'].includes(card.dataset.mode || '') ? card.dataset.mode! : 'login');
+    if (!loggedIn) {
+      if (wanted === 'verify' && !card.dataset.email) show('login');
+      else show(wanted);
+      // 初始聚焦
+      const first = sections[current!].querySelector<HTMLInputElement>('input');
+      if (first) first.focus();
+    }
+    // Enter 快捷提交
+    sections.login.querySelector('#loginPass')?.addEventListener('keydown', (ev) => { if ((ev as KeyboardEvent).key === 'Enter') onLogin(ev); });
+  });
+</script>
+
+<style>
+  .auth-card { max-width: 540px; margin: 0 auto; }
+  .auth-card[hidden] { display: none; }
+  .auth-sec h2 { font-size: 26px; margin: 0 0 4px; }
+  .auth-hint { margin: 0 0 22px; font-size: 15px; }
+  .form-group { margin-bottom: 15px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  .form-group input { width: 100%; min-height: 46px; padding: 9px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; color: var(--ink); font-size: 15px; outline: none; }
+  .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent); }
+  .code-row { display: flex; gap: 10px; }
+  .code-row input { flex: 1; min-width: 0; }
+  .code-row .ghost { min-height: 46px; padding: 0 16px; white-space: nowrap; flex-shrink: 0; }
+  .form-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 22px 0 6px; }
+  .form-actions .action { justify-content: center; min-height: 46px; border-radius: 16px; }
+  .auth-switch { margin: 16px 0 0; font-size: 14px; color: var(--muted); }
+  .auth-switch .linklike { background: none; border: 0; padding: 0; color: var(--primary); font-size: 14px; font-weight: 700; cursor: pointer; }
+  .form-error { color: var(--err); font-size: 14px; margin: 4px 0 0; }
+  .form-error.ok { color: var(--ok); }
+  .profile-user { display: flex; align-items: center; gap: 10px; font-size: 22px; margin: 4px 0 14px; }
+  .profile-user .profile-emoji { font-size: 30px; }
+  .profile-role { background: var(--soft); color: var(--primary); border-radius: 20px; padding: 2px 12px; font-size: 14px; font-weight: 700; }
+  .profile-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 20px 0 4px; }
+  .profile-actions .action { min-height: 46px; border-radius: 16px; }
+  .ghost { background: var(--soft); color: var(--ink); border: 1px solid var(--line); border-radius: 16px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .ghost:hover { border-color: var(--primary); color: var(--primary); }
+  button:disabled, .action:disabled { opacity: 0.6; cursor: wait; }
+</style>
+
+<style is:global>
+  .auth-card { --err: #cf222e; --ok: #1a7f37; }
+  :root[data-theme="dark"] .auth-card { --err: #ff7b72; --ok: #3fb950; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .auth-card { --err: #ff7b72; --ok: #3fb950; }
+  }
+</style>

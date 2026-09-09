@@ -1,0 +1,34 @@
+---
+import site from '../data/site.json';
+import '../styles/site.css';
+const { title, map = false } = Astro.props;
+const links = [['/', '地图首页', '⌖'], ['/about/', '服务器介绍', '◇'], ['/history/', '历程记录', '◷'], ['/thanks/', '特别鸣谢', '♡'], ['/account/', '账号', '👤']];
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={site.description} />
+    <title>{title} · {site.name}</title>
+    <script is:inline>
+      try { const mode = localStorage.getItem('themeMode'); if (mode === 'dark' || mode === 'light') document.documentElement.dataset.theme = mode; } catch {}
+    </script>
+    <slot name="head" />
+  </head>
+  <body class:list={['server-site', { 'map-page': map }]}>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <header class="site-header">
+      <a class="site-brand" href="/"><span class="brand-mark" aria-hidden="true">✦</span><span>{site.name}</span></a>
+      <nav aria-label="主要导航">{links.map(([href, label, icon]) => <a href={href} aria-current={Astro.url.pathname.replace(/\/$/, '') === href.replace(/\/$/, '') ? 'page' : undefined}><span aria-hidden="true">{icon}</span>{label}</a>)}</nav>
+      {!map && <button id="siteTheme" class="theme-toggle" aria-label="切换浅色、深色或跟随系统主题">◐</button>}
+    </header>
+    <main id="main" tabindex="-1"><slot /></main>
+    {!map && <footer class="site-footer"><a href="/">{site.name}</a><span>每一块方块，都有一段故事。</span><a href="/thanks/">致谢与开源</a></footer>}
+    <script>
+      const button = document.getElementById('siteTheme');
+      function label() { let mode = 'auto'; try { mode = localStorage.getItem('themeMode') || 'auto'; } catch {} if (button) button.title = `主题：${mode === 'auto' ? '跟随系统' : mode === 'dark' ? '深色' : '浅色'}`; }
+      button?.addEventListener('click', () => { let current = 'auto'; try { current = localStorage.getItem('themeMode') || 'auto'; } catch {} const next = current === 'auto' ? 'light' : current === 'light' ? 'dark' : 'auto'; if (next === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = next; try { localStorage.setItem('themeMode', next); } catch {} label(); }); label();
+    </script>
+  </body>
+</html>

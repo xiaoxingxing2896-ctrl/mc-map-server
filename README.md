@@ -5,9 +5,9 @@
 
 ## 功能一览
 
-原生 Android 地图客户端的功能、构建与管理员瓦片上传说明见 [android_native/README.md](android_native/README.md)。旧 Flutter 客户端保留在 `mobile_app/`。
+> **web/ —— 网站整合版（新，本仓库默认前端）**：以 RyuChan 设计语言包装本站地图为首页，新增「服务器介绍 / 历程记录 / 特别鸣谢 / 账号入口」页面与移动端适配，账号入口与地图共用登录状态与邮箱验证；Astro 静态站。已并入本仓库：`worker/wrangler.toml` 的 Assets 指向 `web/dist`（构建 `npm run site:build`，部署 `npm run site:deploy`，CI 自动完成），Worker + D1 + R2 与全部接口不变。详见 [web/README.md](web/README.md)。
 
-原生 2.3.2 优化反复缩放时的瓦片缓存复用与总览解码内存；标记跳转保留当前比例、精确居中并显示目标准星。修复详情、验证结果与手动回归步骤见 [Android 验证记录](android_native/VERIFICATION.md)。
+原生 Android 地图客户端的功能、构建与管理员瓦片上传说明见 [android_native/README.md](android_native/README.md)。旧 Flutter 客户端保留在 `mobile_app/`。
 
 原生 2.1 界面采用 Minecraft 方块风格，支持持久化主题、配色、圆角、纹理与字号设置，Wiki 直接接入 [中文 Minecraft Wiki](https://zh.minecraft.wiki/)，并完善密码输入、认证提示和客户端会话处理。
 
@@ -193,9 +193,15 @@ rclone sync tiles r2:mc-map-tiles
 # 4) 设置密钥
 wrangler secret put JWT_SECRET        # 输入 openssl rand -base64 48 的结果
 
-# 5) 部署
+# 5) 构建网站整合版（web/）并部署
+#    worker/wrangler.toml 的 [assets] 已指向 ../web/dist（本仓库默认承载"网站整合版"）
+npm run site:build          # 或：cd web && npm ci && npm run build
 cd worker && wrangler deploy
 ```
+
+> 部署的是「网站整合版」：地图首页 + 服务器介绍 + 历程记录 + 特别鸣谢 + 账号入口，
+> 详细介绍见 [web/README.md](web/README.md)。回退旧版纯地图页：把 `worker/wrangler.toml`
+> 中 `[assets].directory` 改回 `../public` 后重新部署即可（上游地图单页仍在 `public/index.html`）。
 
 部署后默认域名 `mc-map-server.<子域>.workers.dev`。**注意：workers.dev 域名在国内被墙**，
 建议到 Cloudflare 面板为 Worker 绑定自定义域名（Workers → 你的 Worker → Settings → Domains & Routes → Add Custom Domain）。
@@ -277,7 +283,7 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 
 | 推送内容 | 触发动作 |
 |---|---|
-| `worker/**` 或 `public/**` | `deploy.yml`：自动创建 D1（首次）→ 建表 → `wrangler deploy` → 写入 JWT_SECRET |
+| `worker/**`、`web/**` 或 `public/**` | `deploy.yml`：构建 `web/dist` → 自动创建 D1（首次）→ 建表 → `wrangler deploy` → 写入 JWT_SECRET |
 | `tiles/**` | `sync-tiles.yml`：rclone 同步瓦片到 R2，保留 `/_uploads/**` 手机上传层 |
 | `android_native/**` 或原生构建工作流 | `android-native.yml`：构建调试 APK、单元测试、Lint，上传 APK 与报告 |
 | 任意 push / pull request | `test.yml`：Node.js 22/24 后端测试、覆盖率与 Flutter 测试 |

@@ -11,7 +11,10 @@
     "test": "node --test test/*.test.mjs test/*.test.cjs",
     "test:worker": "node --test test/worker-*.test.mjs",
     "test:coverage": "c8 node --test test/*.test.mjs test/*.test.cjs",
-    "fetch-vendor": "node scripts/fetch-vendor.js"
+    "fetch-vendor": "node scripts/fetch-vendor.js",
+    "site:build": "npm --prefix web run build",
+    "site:dev": "npm --prefix web run dev",
+    "site:deploy": "npm --prefix web run build && cd worker && wrangler deploy"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

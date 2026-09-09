@@ -4,9 +4,12 @@ name = "mc-map-server"
 main = "index.js"
 compatibility_date = "2025-06-01"
 
-# 前端静态资源（index.html / vendor）由 Workers Assets 承载，Worker 只处理 /api 与 /tiles
+# 前端静态资源由 Workers Assets 承载，Worker 只处理 /api 与 /tiles。
+# 本目录指向"网站整合版"的构建产物（web/，Astro 构建：npm run site:build）。
+# 上游地图单页仍保留在仓库根 public/index.html，作为 web 首页的嵌入源（构建期读取）。
+# 若想回退到旧版纯地图页，把 directory 改回 "../public" 后重新部署即可。
 [assets]
-directory = "../public"
+directory = "../web/dist"
 
 # 数据库：先执行 wrangler d1 create mc-map-db，再把输出的 database_id 填入
 [[d1_databases]]

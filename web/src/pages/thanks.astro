@@ -1,0 +1,15 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import site from '../data/site.json';
+const people = site.thanks as { name: string; contribution: string; url?: string }[];
+const projects = [
+  ['01','mc-map-server','xiaoxingxing2896-ctrl','地图、标注与账号系统。','https://github.com/xiaoxingxing2896-ctrl/mc-map-server'],
+  ['02','RyuChan','kobaridev','网站主体设计与 Astro 模板基础。','https://github.com/kobaridev/RyuChan'],
+  ['03','Wan’s Mcweb','wanwanjiean123','历程时间轴设计、图片命名方式与介绍页风景素材。','https://github.com/wanwanjiean123/Wan-s-Mcweb']
+];
+---
+<BaseLayout title="特别鸣谢">
+  <div class="page-heading"><span class="section-tag">MADE POSSIBLE BY YOU</span><h1>感谢，每一个你。</h1><p>感谢为这个世界投入时间与心意的伙伴，也感谢开源社区让这些想法成为可能。</p></div>
+  <div class="content stack">{people.length ? <div class="credits">{people.map(person => <article class="card"><h2>{person.name}</h2><p>{person.contribution}</p>{person.url && <a href={person.url} target="_blank" rel="noopener noreferrer">了解更多 ↗</a>}</article>)}</div> : <article class="card"><h2>致一起建设的伙伴</h2><p>特别鸣谢名单整理中。谢谢你让「一辈子存档」多了一段值得留下的故事。</p></article>}
+  <h2>开源项目</h2><div class="credits">{projects.map(([number,name,author,description,url]) => <article class="card"><span class="credit-number">OPEN SOURCE / {number}</span><h2>{name}</h2><p>{description}</p><a href={url} target="_blank" rel="noopener noreferrer">{author} ↗</a></article>)}</div></div>
+</BaseLayout>

@@ -1,0 +1,46 @@
+---
+interface CardGroupProps { class?: string; cols?: string; }
+
+const {
+  class: className = "",
+  cols = "2", // 默认两列
+} = Astro.props as CardGroupProps;
+---
+
+<div class={`card-group ${className}`}>
+  <slot />
+</div>
+
+<style define:vars={{ cols }}>
+  .card-group {
+    width: 100%;
+    position: relative;
+  }
+
+  /* 桌面：网格布局 */
+  @media (min-width: 768px) {
+    .card-group {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(var(--cols), 1fr);
+    }
+  }
+
+  /* 移动端：默认单列 */
+  @media (max-width: 767px) {
+    .card-group {
+      display: grid;
+      grid-template-columns: repeat(1, 1fr);
+      gap: 0.75rem;
+    }
+
+    .card-group.grid-cols-2 {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+
+    :global(.card-group > *) {
+      margin: 0;
+    }
+  }
+</style>

@@ -1,0 +1,15 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import CardGroup from '../components/temple/CardGroup.astro';
+import site from '../data/site.json';
+---
+<BaseLayout title="服务器介绍">
+  <section class="banner"><img src={site.banner} alt="Minecraft 风景，来自 Wan’s Mcweb 模板" fetchpriority="high" /><div class="banner-copy"><span class="eyebrow">{site.eyebrow}</span><h1>{site.name}</h1><p>{site.description}</p></div></section>
+  <div class="content intro-layout">
+    <aside class="card profile"><span class="brand-mark">✦</span><h2>{site.name}</h2><p>马迷的方块世界</p><hr /><a href="/">探索世界地图 →</a></aside>
+    <div class="stack"><article class="card"><span class="section-tag">ABOUT OUR SERVER</span><h2>把这一段时光，留在存档里。</h2><p>{site.introduction}</p><a class="action" href="/">打开地图 <span aria-hidden="true">↗</span></a></article>
+      <CardGroup cols="2"><article class="card"><span class="section-tag">01 / EXPLORE</span><h2>一起探索</h2><p>主世界、下界与末地。在地图上浏览地形，按坐标找到目的地，按类别查找建筑与设施。</p></article><article class="card"><span class="section-tag">02 / BUILD</span><h2>一起建设</h2><p>给农场和建筑留下标注。公开分享位置，或用私有标注收藏自己的计划。</p></article></CardGroup>
+      <article class="card"><span class="section-tag">JOIN THE WORLD</span><h2>加入我们</h2>{site.address ? <p>服务器地址：<strong>{site.address}</strong></p> : <p>加入方式请联系服务器管理员。</p>}{site.version && <p>游戏版本：{site.version}</p>}{site.joinUrl && <a class="action" href={site.joinUrl} rel="noopener noreferrer">查看加入方式 ↗</a>}<p>已有地图账号？<a href="/account/" style="color:var(--primary)">前往账号入口</a>，继续记录你的世界。</p></article>
+    </div>
+  </div>
+</BaseLayout>
