@@ -221,7 +221,7 @@ import java.util.Locale
                         if (good) {
                             Text("${server.online} / ${server.max}", style = MaterialTheme.typography.headlineLarge)
                             Text("在线玩家  ·  ${server.latency} ms", style = MaterialTheme.typography.labelLarge)
-                            if (server.players.isNotEmpty()) Text(server.players.joinToString(" · "), maxLines = 3, style = MaterialTheme.typography.bodySmall)
+                            ServerPlayersSection(server.id, server.players)
                         } else Text(when { frozen -> "暂时离线 · 已持续 ${((System.currentTimeMillis() - server.failedSince) / 60000).coerceAtLeast(0)} 分钟"; server.failures > 0 -> "连接失败 ${server.failures}/3 · 下一轮自动重试"; else -> "正在连接…" })
                         if (server.pinned) Row {
                             AtlasTextButton(onClick = { vm.moveServer(server.id, -1) }) { Text("上移") }
@@ -240,4 +240,59 @@ import java.util.Locale
         AtlasTextButton(onClick = { deletion = server; menu = null }) { Text("删除") }
     } }, confirmButton = { AtlasTextButton(onClick = { menu = null }) { Text("关闭") } }) }
     deletion?.let { server -> AtlasDialog(onDismissRequest = { deletion = null }, title = { Text("删除服务器？") }, text = { Text(server.address) }, confirmButton = { AtlasTextButton(onClick = { vm.changeServer(server.id, "delete"); deletion = null }) { Text("删除") } }, dismissButton = { AtlasTextButton(onClick = { deletion = null }) { Text("取消") } }) }
+}
+
+@Composable
+private fun ServerPlayersSection(serverId: String, players: List<String>) {
+    if (players.isEmpty()) return
+
+    val normalPlayers = players.filterNot(::isAnonymousPlayer)
+    val anonymousPlayers = players.filter(::isAnonymousPlayer)
+    var anonymousExpanded by rememberSaveable(serverId) { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (normalPlayers.isNotEmpty()) {
+            Text(
+                "在线玩家：${normalPlayers.joinToString(" · ")}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (anonymousPlayers.isNotEmpty()) {
+            Surface(
+                onClick = { anonymousExpanded = !anonymousExpanded },
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "匿名玩家（${anonymousPlayers.size}）",
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    AtlasIcon(
+                        if (anonymousExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        if (anonymousExpanded) "收起匿名玩家" else "展开匿名玩家",
+                    )
+                }
+            }
+            if (anonymousExpanded) {
+                Text(
+                    anonymousPlayers.joinToString(" · "),
+                    Modifier.padding(start = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+private fun isAnonymousPlayer(name: String): Boolean {
+    val normalized = name.trim().lowercase(Locale.ROOT)
+    return normalized == "anonymous player" ||
+        normalized.startsWith("anonymous player") ||
+        normalized.startsWith("anonymousplayer") ||
+        normalized.startsWith("anonymous")
 }

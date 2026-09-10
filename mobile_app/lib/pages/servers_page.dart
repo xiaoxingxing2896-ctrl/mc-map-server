@@ -85,16 +85,8 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
     _pinging = true;
     try {
       await Future.wait(_list.map((e) => _pingOne(e)));
-    } catch (err) {
-      print('pingAll error: ' + err.toString());
-    } finally {
-      _pinging = false; // 保证重置，避免挂起卡死后续周期
-    }
-    await ServersStore.save(_list);
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _pingOne(ServerEntry e) async {
+          // 玩家列表（分组：普通玩家 / 匿名玩家）
+          _buildPlayersSection(e, muted, statusText, frozenText),
     var host = e.host;
     var port = e.port;
     // 总是先查 SRV 记录（_minecraft._tcp.<host>）：
@@ -531,6 +523,87 @@ class _ServersPageState extends State<ServersPage> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  /// 玩家列表：普通玩家平铺（不限人数）；匿名玩家折叠，默认收起
+  Widget _buildPlayersSection(
+      ServerEntry e, Color muted, String statusText, String frozenText) {
+    if (e.players.isEmpty) {
+      return Text(
+        e.status == ServerStatus.ok ? '暂无玩家在线' : statusText + frozenText,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 12.5, color: muted, height: 1.5),
+      );
+    }
+
+    final normalPlayers = <String>[];
+    final anonymousPlayers = <String>[];
+    for (final name in e.players) {
+      if (_isAnonymousPlayer(name)) {
+        anonymousPlayers.add(name);
+      } else {
+        normalPlayers.add(name);
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (normalPlayers.isNotEmpty)
+          Text(
+            '在线玩家：${normalPlayers.join('、')}',
+            style: TextStyle(fontSize: 12.5, color: muted, height: 1.5),
+          ),
+        if (anonymousPlayers.isNotEmpty) ...[
+          if (normalPlayers.isNotEmpty) const SizedBox(height: 4),
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: PageStorageKey<String>('anon_${e.id}'),
+              initiallyExpanded: false,
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(left: 8, bottom: 6),
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              iconColor: muted,
+              collapsedIconColor: muted,
+              title: Text(
+                '匿名玩家（${anonymousPlayers.length}）',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: muted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    anonymousPlayers.join('、'),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: muted,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 判断是否为匿名玩家
+  bool _isAnonymousPlayer(String name) {
+    final n = name.trim().toLowerCase();
+    return n == 'anonymous player' ||
+        n.startsWith('anonymous player') ||
+        n.startsWith('anonymousplayer') ||
+        n.startsWith('anonymous');
   }
 
   String _durationText(Duration d) {
