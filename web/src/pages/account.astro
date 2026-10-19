@@ -70,6 +70,7 @@ const emailParam = Astro.url.searchParams.get('email') || '';
         <p class="auth-hint" id="profileHint">登录状态与地图一致。可回到地图添加标注、查看私有标注；修改用户名 / 密码与“用户管理”入口仍在世界地图页的账号菜单中（右上角 ⚙️）。</p>
         <div class="profile-actions">
           <a class="action" href="/">返回地图 <span aria-hidden="true">↗</span></a>
+          <a class="ghost" id="manageLink" href="/upload/" hidden>上传瓦片</a>
           <button type="button" class="ghost" id="logoutBtn">退出登录</button>
         </div>
         <p class="form-error" id="profileError" role="alert" hidden></p>
@@ -315,6 +316,8 @@ const emailParam = Astro.url.searchParams.get('email') || '';
       localStorage.setItem(K.role, me.role);
       const el = document.getElementById('profileUser') as HTMLElement;
       el.innerHTML = '<span class="profile-emoji">' + (me.role === 'owner' ? '👑' : me.role === 'admin' ? '🛡️' : '👤') + '</span><strong>' + esc(me.username) + '</strong><span class="profile-role">' + esc(me.role) + '</span>';
+      const manage = document.getElementById('manageLink') as HTMLElement | null;
+      if (manage) manage.hidden = !(me.role === 'admin' || me.role === 'owner');
       show('profile');
       return true;
     } catch {

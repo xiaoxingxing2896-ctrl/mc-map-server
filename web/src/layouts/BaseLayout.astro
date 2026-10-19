@@ -2,7 +2,18 @@
 import site from '../data/site.json';
 import '../styles/site.css';
 const { title, map = false } = Astro.props;
-const links = [['/', '地图首页', '⌖'], ['/about/', '服务器介绍', '◇'], ['/history/', '历程记录', '◷'], ['/thanks/', '特别鸣谢', '♡'], ['/account/', '账号', '👤']];
+const links = [
+  ['/about/', '服务器介绍', '◇'],
+  ['/history/', '历程记录', '◷'],
+  ['/transit/', '交通线路', '⇄'],
+  ['/', '地图', '⌖'],
+  ['/upload/', '上传瓦片', '⬆'],
+  ['/wiki/', '服务器Wiki', '▤'],
+  ['/thanks/', '特别鸣谢', '♡'],
+  ['/account/', '账号', '👤'],
+];
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isActive = (href: string) => { const base = href.replace(/\/$/, '') || '/'; return base === '/' ? path === '/' : path === base || path.startsWith(base + '/'); };
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -20,11 +31,11 @@ const links = [['/', '地图首页', '⌖'], ['/about/', '服务器介绍', '◇
     <a class="skip-link" href="#main">跳到主要内容</a>
     <header class="site-header">
       <a class="site-brand" href="/"><span class="brand-mark" aria-hidden="true">✦</span><span>{site.name}</span></a>
-      <nav aria-label="主要导航">{links.map(([href, label, icon]) => <a href={href} aria-current={Astro.url.pathname.replace(/\/$/, '') === href.replace(/\/$/, '') ? 'page' : undefined}><span aria-hidden="true">{icon}</span>{label}</a>)}</nav>
+      <nav aria-label="主要导航">{links.map(([href, label, icon]) => <a href={href} aria-current={isActive(href) ? 'page' : undefined}><span aria-hidden="true">{icon}</span>{label}</a>)}</nav>
       {!map && <button id="siteTheme" class="theme-toggle" aria-label="切换浅色、深色或跟随系统主题">◐</button>}
     </header>
     <main id="main" tabindex="-1"><slot /></main>
-    {!map && <footer class="site-footer"><a href="/">{site.name}</a><span>每一块方块，都有一段故事。</span><a href="/thanks/">致谢与开源</a></footer>}
+    {!map && <footer class="site-footer"><a href="/">{site.name}</a><span>每一块方块，都有一段故事。</span><nav aria-label="页脚导航"><a href="/wiki/">服务器 Wiki</a><a href="/transit/">交通线路</a><a href="/thanks/">致谢与开源</a></nav></footer>}
     <script>
       const button = document.getElementById('siteTheme');
       function label() { let mode = 'auto'; try { mode = localStorage.getItem('themeMode') || 'auto'; } catch {} if (button) button.title = `主题：${mode === 'auto' ? '跟随系统' : mode === 'dark' ? '深色' : '浅色'}`; }

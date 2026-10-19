@@ -1,0 +1,232 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+const props = Astro.props as Record<string, any>;
+const fm = props.frontmatter ?? props ?? {};
+const pageTitle = fm.title ?? props.title ?? '服务器 Wiki';
+const pageTag = fm.tag ?? 'SERVER WIKI';
+const pageLead = fm.description ?? '';
+const pageUpdated = fm.updated ?? '';
+
+const normalize = (value: string) => value.replace(/\/+$/, '') || '/';
+const pathname = normalize(Astro.url.pathname);
+
+type WikiItem = { href: string; label: string; short: string };
+type WikiGroup = { label: string; tag: string; index?: string; items: WikiItem[] };
+
+const groups: WikiGroup[] = [
+  { label: '新手线', tag: 'START', index: '/wiki/start/', items: [
+    { href: '/wiki/start/', label: '新手线总览', short: '总览' },
+    { href: '/wiki/start/01-join/', label: '01 加入服务器', short: '01 加入' },
+    { href: '/wiki/start/02-first-hour/', label: '02 第一个小时', short: '02 第一小时' },
+    { href: '/wiki/start/03-rules/', label: '03 服务器规则', short: '03 规则' },
+    { href: '/wiki/start/04-commands/', label: '04 常用指令', short: '04 指令' },
+    { href: '/wiki/start/05-where-to-ask/', label: '05 去哪问人', short: '05 提问' },
+  ] },
+  { label: '设施手册', tag: 'FACILITIES', index: '/wiki/facilities/', items: [
+    { href: '/wiki/facilities/', label: '设施总表', short: '总表' },
+    { href: '/wiki/facilities/villager-hall/', label: '村民交易所', short: '交易所' },
+    { href: '/wiki/facilities/iron-farm/', label: '铁农场', short: '铁农场' },
+    { href: '/wiki/facilities/mob-farm/', label: '刷怪与经验农场', short: '经验农场' },
+  ] },
+  { label: '地图', tag: 'MAP', items: [
+    { href: '/wiki/map/overview/', label: '设施分布图', short: '分布图' },
+  ] },
+  { label: '参考', tag: 'REFERENCE', items: [
+    { href: '/wiki/reference/glossary/', label: '术语表', short: '术语' },
+    { href: '/wiki/reference/gear/', label: '装备与附魔', short: '装备' },
+    { href: '/wiki/reference/changelog/', label: '变更日志', short: '变更' },
+    { href: '/wiki/reference/report/', label: '反馈与报错', short: '反馈' },
+  ] },
+];
+
+const flat = groups.flatMap((group) => group.items.map((item) => ({ item, group })));
+const current = flat.find((entry) => normalize(entry.item.href) === pathname) ?? null;
+const activeGroup = current?.group ?? groups.find((group) => group.items.some((item) => normalize(item.href) === pathname)) ?? null;
+const crumbGroup = current && current.item.href !== current.group.index ? current.group.label : '';
+const isWikiHome = pathname === '/wiki';
+---
+
+<BaseLayout title={isWikiHome ? '服务器 Wiki' : pageTitle + ' · 服务器 Wiki'}>
+  <div class="wiki-shell">
+    <div class="wiki-topbar">
+      <nav class="wiki-crumb" aria-label="面包屑">
+        <a href="/wiki/">服务器 Wiki</a>
+        {crumbGroup && <><span class="sep" aria-hidden="true">›</span><span>{crumbGroup}</span></>}
+        {current && <><span class="sep" aria-hidden="true">›</span><span class="here">{current.item.label}</span></>}
+      </nav>
+      <a class="wiki-back" href="/"><span aria-hidden="true">←</span> 返回站点</a>
+    </div>
+
+    <div class="wiki-mobile">
+      <div class="wiki-strip" aria-label="Wiki 分类">
+        {groups.map((group) => {
+          const href = group.index ?? group.items[0].href;
+          const on = activeGroup?.label === group.label;
+          return <a href={href} aria-current={on ? 'page' : undefined}>{group.label}</a>;
+        })}
+      </div>
+      {activeGroup && (
+        <div class="wiki-strip wiki-strip-sub" aria-label={'「' + activeGroup.label + '」目录'}>
+          {activeGroup.items.map((item) => (
+            <a href={item.href} aria-current={normalize(item.href) === pathname ? 'page' : undefined}>{item.short}</a>
+          ))}
+        </div>
+      )}
+    </div>
+
+    <aside class="wiki-side">
+      <a class="wiki-side-brand" href="/wiki/"><span class="brand-mark" aria-hidden="true">✦</span>服务器 Wiki</a>
+      <nav class="wiki-tree" aria-label="服务器 Wiki 目录">
+        {groups.map((group) => (
+          <div class="wiki-group">
+            <span>{group.label}<em>{group.tag}</em></span>
+            {group.items.map((item) => (
+              <a href={item.href} aria-current={normalize(item.href) === pathname ? 'page' : undefined}>{item.label}</a>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <p class="wiki-side-note">内容有出入？<a href="/wiki/reference/report/">告诉我们</a></p>
+    </aside>
+
+    <div class="wiki-main">
+      <div class="page-heading">
+        <span class="section-tag">{pageTag}</span>
+        <h1>{pageTitle}</h1>
+        {pageLead && <p>{pageLead}</p>}
+      </div>
+      <article class="wiki-body">
+        <slot />
+        {pageUpdated && <p class="wiki-updated">最后更新：{pageUpdated}</p>}
+      </article>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .wiki-shell{max-width:1180px;margin:0 auto;padding:112px 20px 20px;display:grid;grid-template-columns:252px minmax(0,1fr);gap:18px 36px;align-items:start}
+  .wiki-topbar{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:14px;color:var(--muted);margin-bottom:6px}
+  .wiki-crumb{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;line-height:1.5}
+  .wiki-crumb a{color:var(--muted)}
+  .wiki-crumb a:hover{color:var(--primary)}
+  .wiki-crumb .sep{opacity:.5}
+  .wiki-crumb .here{color:var(--ink);font-weight:600}
+  .wiki-back{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:8px 16px;min-height:40px;color:var(--ink);font-weight:600;font-size:14px;box-shadow:var(--shadow)}
+  .wiki-back:hover{border-color:var(--primary);color:var(--primary)}
+  .wiki-side{position:sticky;top:104px;align-self:start;max-height:calc(100dvh - 128px);overflow-y:auto;padding:4px 8px 14px 2px}
+  .wiki-side-brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;padding:0 12px 12px}
+  .wiki-side-brand .brand-mark{font-size:20px;color:var(--primary)}
+  .wiki-tree{display:grid;gap:18px}
+  .wiki-group>span{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--ink);padding:0 12px 6px}
+  .wiki-group>span em{font-style:normal;font-size:10px;letter-spacing:.1em;color:var(--muted);font-weight:600}
+  .wiki-group a{display:block;padding:8px 12px;border-radius:14px;font-size:14.5px;line-height:1.5;color:var(--muted)}
+  .wiki-group a:hover{background:var(--soft);color:var(--primary)}
+  .wiki-group a[aria-current=page]{background:var(--soft);color:var(--primary);font-weight:700}
+  .wiki-side-note{margin:18px 0 0;padding:14px 12px 0;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .wiki-side-note a{color:var(--primary);text-decoration:underline;text-underline-offset:3px}
+  .wiki-main{min-width:0}
+  .wiki-main .page-heading{max-width:none;margin:0 0 24px;padding:0}
+  .wiki-main .page-heading h1{font-size:clamp(28px,4vw,40px);margin:8px 0 10px;line-height:1.25}
+  .wiki-main .page-heading p{margin:0;font-size:15.5px;line-height:1.8}
+  .wiki-mobile{display:none;grid-column:1/-1}
+  .wiki-strip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+  .wiki-strip::-webkit-scrollbar{display:none}
+  .wiki-strip a{flex:0 0 auto;display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:22px;background:var(--surface);font-size:14px;font-weight:600;white-space:nowrap;color:var(--ink)}
+  .wiki-strip a[aria-current=page]{background:var(--soft);border-color:var(--primary);color:var(--primary)}
+  .wiki-strip-sub a{min-height:40px;font-size:13.5px;font-weight:500;background:var(--page);padding:0 14px}
+
+  .wiki-body{background:var(--surface);border:1px solid var(--line);border-radius:26px;padding:34px 38px 38px;box-shadow:var(--shadow);min-width:0}
+  .wiki-body > :global(:first-child){margin-top:0}
+  .wiki-body :global(h2){font-size:23px;line-height:1.4;margin:38px 0 14px;letter-spacing:-.005em}
+  .wiki-body :global(h3){font-size:18px;line-height:1.5;margin:26px 0 10px}
+  .wiki-body :global(h4){font-size:15px;margin:20px 0 8px;color:var(--muted);letter-spacing:.04em}
+  .wiki-body :global(p){margin:0 0 14px;line-height:1.85;color:var(--ink)}
+  .wiki-body :global(ul),.wiki-body :global(ol){margin:0 0 16px;padding-left:22px}
+  .wiki-body :global(li){margin:6px 0;line-height:1.8;color:var(--ink)}
+  .wiki-body :global(li::marker){color:var(--primary)}
+  .wiki-body :global(a){color:var(--primary);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+  .wiki-body :global(a:hover){text-decoration-thickness:2px}
+  .wiki-body :global(strong){font-weight:700}
+  .wiki-body :global(blockquote){margin:18px 0;padding:0 0 0 16px;border-left:3px solid var(--line);color:var(--muted)}
+  .wiki-body :global(hr){border:0;border-top:1px solid var(--line);margin:28px 0}
+  .wiki-body :global(img){max-width:100%;height:auto;border-radius:16px}
+  .wiki-body :global(code){background:var(--soft);color:var(--ink);border-radius:8px;padding:1px 7px;font-size:.92em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}
+  .wiki-body :global(pre){background:var(--page);border:1px solid var(--line);border-radius:16px;padding:16px 18px;overflow-x:auto;margin:18px 0}
+  .wiki-body :global(pre code){background:none;padding:0;white-space:pre}
+
+  .wiki-body :global(table){width:100%;border-collapse:separate;border-spacing:0;font-size:14.5px;margin:18px 0 22px;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .wiki-body :global(thead th){background:var(--soft);color:var(--ink);text-align:left;font-weight:700;font-size:13.5px;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .wiki-body :global(tbody td){padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.7;color:var(--ink)}
+  .wiki-body :global(tbody tr:last-child td){border-bottom:0}
+  .wiki-body :global(tbody tr:hover td){background:var(--page)}
+  .wiki-body :global(tr[hidden]){display:none!important}
+  .wiki-body :global(.wiki-table-wrap){margin:18px 0 22px;overflow-x:auto;overscroll-behavior-x:contain}
+  .wiki-body :global(.wiki-table-wrap)>table{margin:0}
+  .wiki-body :global(.wiki-table td){word-break:keep-all}
+  .wiki-body :global(.wiki-table td:nth-child(2)){min-width:96px}
+  .wiki-body :global(.wiki-table td:nth-child(4)){min-width:112px}
+  .wiki-body :global(.wiki-table td:nth-child(6)){word-break:normal;min-width:96px}
+  .wiki-body :global(.wiki-table td:last-child){word-break:normal;min-width:136px}
+
+  .wiki-body :global(.wiki-callout){background:var(--soft);border:1px solid var(--line);border-left:4px solid var(--primary);border-radius:14px;padding:14px 18px;margin:20px 0;font-size:15px;line-height:1.8;color:var(--ink)}
+  .wiki-body :global(.wiki-callout strong){color:var(--primary)}
+  .wiki-body :global(.wiki-callout a){color:var(--primary)}
+  .wiki-body :global(.wiki-note){font-size:13.5px;line-height:1.75;color:var(--muted);margin:10px 0 18px}
+  .wiki-body :global(.wiki-updated){margin:32px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+
+  .wiki-body :global(.wiki-grid){display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:20px 0 22px}
+  .wiki-body :global(.wiki-card){display:block;border:1px solid var(--line);border-radius:20px;padding:18px 20px;background:var(--page);text-decoration:none;color:var(--ink);transition:border-color .2s,background .2s}
+  .wiki-body :global(a.wiki-card:hover){border-color:var(--primary);background:var(--soft);text-decoration:none}
+  .wiki-body :global(.wiki-card h3){margin:8px 0 6px;font-size:17px;color:var(--ink)}
+  .wiki-body :global(.wiki-card p){margin:0;font-size:14px;line-height:1.7;color:var(--muted)}
+  .wiki-body :global(.wiki-card .section-tag){font-size:11.5px}
+
+  .wiki-body :global(.wiki-toolbar){display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:22px 0 6px}
+  .wiki-body :global(.wiki-filters){display:flex;flex-wrap:wrap;gap:8px}
+  .wiki-body :global(.wiki-chip){min-height:44px;padding:0 18px;border:1px solid var(--line);border-radius:22px;background:var(--surface);color:var(--ink);font-size:14px;font-weight:600}
+  .wiki-body :global(.wiki-chip:hover){border-color:var(--primary);color:var(--primary)}
+  .wiki-body :global(.wiki-chip[aria-pressed=true]){background:var(--primary);border-color:var(--primary);color:var(--surface)}
+  .wiki-body :global(.wiki-search){flex:1 1 220px;min-width:180px;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:14px}
+  .wiki-body :global(.wiki-search::placeholder){color:var(--muted)}
+  .wiki-body :global(.wiki-filter-empty){display:block;padding:28px 20px;margin:10px 0 0;text-align:center;color:var(--muted);background:var(--page);border:1px dashed var(--line);border-radius:16px;font-size:14px}
+  .wiki-body :global(.wiki-filter-empty[hidden]){display:none}
+
+  .wiki-body :global(.wiki-map){display:block;width:100%;height:auto;margin:20px 0 8px}
+  .wiki-body :global(.wiki-map a){text-decoration:none}
+  .wiki-body :global(.wiki-map .wiki-map-bg){fill:var(--page);stroke:var(--line);stroke-width:1.5}
+  .wiki-body :global(.wiki-map .wiki-map-block){fill:var(--surface);stroke:var(--line);stroke-width:1.5;transition:fill .2s,stroke .2s}
+  .wiki-body :global(.wiki-map a:hover .wiki-map-block),.wiki-body :global(.wiki-map a:focus-visible .wiki-map-block){fill:var(--soft);stroke:var(--primary)}
+  .wiki-body :global(.wiki-map .wiki-map-link){stroke:var(--line);stroke-width:1.5;stroke-dasharray:4 5;fill:none}
+  .wiki-body :global(.wiki-map .wiki-map-badge){fill:var(--primary);stroke:var(--page);stroke-width:3}
+  .wiki-body :global(.wiki-map .wiki-map-num){fill:var(--surface);font-size:12.5px;font-weight:700}
+  .wiki-body :global(.wiki-map .wiki-map-label){fill:var(--ink);font-size:15px;font-weight:700}
+  .wiki-body :global(.wiki-map .wiki-map-sub){fill:var(--muted);font-size:12px}
+  .wiki-body :global(.wiki-figcaption){margin:0 0 22px;font-size:13px;line-height:1.7;color:var(--muted)}
+  .wiki-body :global(.wiki-tag-list){display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 20px;padding:0;list-style:none}
+  .wiki-body :global(.wiki-tag-list li){margin:0;background:var(--soft);color:var(--primary);border-radius:20px;padding:3px 12px;font-size:13.5px}
+  .wiki-body :global(.wiki-tag-list a){color:var(--primary);text-decoration:none}
+
+  @media(max-width:850px){
+    .wiki-shell{grid-template-columns:minmax(0,1fr);padding:118px 16px 12px;gap:14px}
+    .wiki-side{display:none}
+    .wiki-mobile{display:block}
+    .wiki-topbar{margin-bottom:0}
+    .wiki-body{padding:26px 22px 30px;border-radius:22px}
+    .wiki-main .page-heading{margin-bottom:18px}
+    .wiki-body :global(table){display:block;overflow-x:auto;white-space:nowrap;border-radius:14px}
+    .wiki-body :global(.wiki-table-wrap){overflow:visible}
+    .wiki-body :global(thead th),.wiki-body :global(tbody td){padding:10px 12px}
+    .wiki-body :global(.wiki-grid){grid-template-columns:1fr}
+  }
+  @media(max-width:580px){
+    .wiki-shell{padding:132px 12px 8px}
+    .wiki-body{padding:22px 18px 26px}
+    .wiki-main .page-heading h1{font-size:26px}
+    .wiki-body :global(h2){font-size:20px;margin:30px 0 12px}
+    .wiki-body :global(h3){font-size:17px}
+    .wiki-body :global(table){font-size:13.5px}
+    .wiki-body :global(.wiki-toolbar){gap:10px}
+    .wiki-body :global(.wiki-search){flex:1 1 100%}
+  }
+</style>

@@ -1,0 +1,292 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout title="交通线路">
+  <div class="page-heading">
+    <span class="section-tag">NETHER TRANSIT</span>
+    <h1>下界的路，已经画好了。</h1>
+    <p>一辈子存档服务器的下界交通示意图。点站名看详情，滚轮或双指缩放，拖动平移，双击复位。</p>
+  </div>
+
+  <!-- 组件与数据必须排在 <nether-map> 之前：自定义元素升级时会同步读取 window.NETHER_MAP_DATA -->
+  <script is:inline src="/nether-map/nether-map.js"></script>
+  <script is:inline src="/nether-map/nether-map-data.js"></script>
+
+  <div class="content">
+    <div class="card map-card">
+      <nether-map id="netherMap" lang="both" underlay="/nether-map/assets/source.jpg"></nether-map>
+      <noscript><p class="map-noscript">线路图由脚本绘制，开启 JavaScript 后即可查看。</p></noscript>
+    </div>
+
+    <div class="map-notes">
+      <div class="card">
+        <span class="section-tag">HOW TO READ</span>
+        <h2>怎么用这张图</h2>
+        <ul class="howto">
+          <li><span class="key">缩放</span><span>滚轮或双指捏合，也可以点图右上角的 ＋ / －。</span></li>
+          <li><span class="key">平移</span><span>在空白处按住拖动，整张图跟着走。</span></li>
+          <li><span class="key">详情</span><span>点站名，右侧（手机上在下方）展开所属线路、标签与坐标。</span></li>
+          <li><span class="key">复位</span><span>双击图面，或点「复位」，回到整张图。</span></li>
+          <li><span class="key">键盘</span><span>Tab 逐个聚焦站点，Enter 选中，Esc 取消。</span></li>
+        </ul>
+        <div class="symbols">
+          <span><i class="s-station"></i>普通车站</span>
+          <span><i class="s-interchange"></i>换乘站</span>
+          <span><i class="s-junction"></i>岔路口</span>
+          <span><i class="s-wip"></i>暂未运营</span>
+        </div>
+        <p class="tip">找不到某个站时，先双击复位看全图，再顺着线路放大过去。</p>
+      </div>
+
+      <div class="card">
+        <span class="section-tag">LINES &amp; CREDIT</span>
+        <h2>线路与出处</h2>
+        <div class="lines" id="lineLegend" hidden>
+          <p class="lines-head"><span>共 <span id="lineCount">9</span> 条线路</span><span>悬停或点选站点，会高亮它所属的线路</span></p>
+          <ul class="line-list" id="lineList"></ul>
+        </div>
+        <p>原图《一辈子存档服务器地狱交通示意图》，<strong>图片绘制 Image Creator: @虹翼整理 / @SparkleRhythm</strong>。</p>
+        <p>本站把线路与站点整理成数据，再由脚本在浏览器里绘制成 SVG：缩放不失真，点选、详情与图例始终一致。</p>
+        <p class="note">线路数据在 <code>web/public/nether-map/nether-map-data.js</code>，改数据即改图。</p>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    (function () {
+      /* 站点主题由 :root[data-theme] 控制，组件默认只跟随操作系统，这里把它对齐到站点主题 */
+      var map = document.getElementById('netherMap');
+      var root = document.documentElement;
+      if (map) {
+        var media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+        var syncTheme = function () {
+          var mode = root.getAttribute('data-theme');
+          var dark = mode === 'dark' || (!mode && media && media.matches);
+          map.setAttribute('theme', dark ? 'dark' : 'light');
+        };
+        syncTheme();
+
+        /* 公开页面默认不暴露编辑入口；维护者在 URL 上加 ?edit=1 才显示。
+           用注入 <style> 的方式隐藏，组件切换视图模式重绘工具栏后依然生效。 */
+        var allowEdit = /(?:^|[?&])edit=1(?:&|$)/.test(location.search);
+        if (map.shadowRoot && !allowEdit) {
+          var style = document.createElement('style');
+          style.textContent = '[data-act="mode-edit"]{display:none!important}';
+          map.shadowRoot.appendChild(style);
+        }
+        if (window.MutationObserver) new MutationObserver(syncTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+        if (media) {
+          if (media.addEventListener) media.addEventListener('change', syncTheme);
+          else if (media.addListener) media.addListener(syncTheme);
+        }
+      }
+
+      /* 线路图例由数据生成，改 nether-map-data.js 时图例自动跟着变 */
+      var data = window.NETHER_MAP_DATA;
+      var legend = document.getElementById('lineLegend');
+      var list = document.getElementById('lineList');
+      if (!data || !data.lines || !legend || !list) return;
+      data.lines.forEach(function (line) {
+        var item = document.createElement('li');
+        var dot = document.createElement('i');
+        dot.style.background = line.color || 'currentColor';
+        item.appendChild(dot);
+        var label = document.createElement('span');
+        label.textContent = line.name + (line.sub ? ' · ' + line.sub : '');
+        item.appendChild(label);
+        list.appendChild(item);
+      });
+      var count = document.getElementById('lineCount');
+      if (count) count.textContent = String(data.lines.length);
+      legend.hidden = false;
+    })();
+  </script>
+</BaseLayout>
+
+<style>
+  /* 地图卡片：组件按 952:538 的 viewBox 自适应宽度，卡片只负责边框、圆角与桌面端的最小高度 */
+  .map-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12px;
+    overflow: hidden;
+  }
+  .map-card nether-map {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .map-noscript {
+    margin: 0;
+    padding: 40px 20px;
+    text-align: center;
+  }
+
+  .map-notes {
+    display: grid;
+    grid-template-columns: 1.02fr 0.98fr;
+    gap: 22px;
+    margin-top: 22px;
+  }
+  .map-notes h2 {
+    font-size: 22px;
+    margin: 10px 0 16px;
+  }
+  .map-notes p {
+    margin: 0 0 12px;
+  }
+  .map-notes strong {
+    color: var(--ink);
+  }
+  .map-notes code {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--soft);
+    color: var(--ink);
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+  }
+  .map-notes .note {
+    margin: 16px 0 0;
+    padding: 12px 16px;
+    border-radius: 14px;
+    background: var(--soft);
+    color: var(--ink);
+    font-size: 14px;
+  }
+
+  .howto {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .howto li {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 10px;
+    align-items: start;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .howto .key {
+    padding-top: 3px;
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .symbols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .symbols span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .symbols i {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    background: var(--surface);
+  }
+  .symbols .s-interchange {
+    width: 22px;
+    border-color: var(--primary);
+    border-radius: 7px;
+    background: var(--primary);
+  }
+  .symbols .s-junction {
+    width: 22px;
+    border-color: var(--muted);
+    border-radius: 7px;
+    background: var(--soft);
+  }
+  .symbols .s-wip {
+    border-style: dashed;
+    border-color: var(--muted);
+    background: transparent;
+  }
+  .map-notes .tip {
+    margin: 18px 0 0;
+  }
+
+  .lines {
+    margin: 0 0 18px;
+  }
+  .lines-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px 14px;
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .line-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .line-list li {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 12px 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--ink);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .line-list i {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+
+  @media (min-width: 851px) {
+    .map-card {
+      min-height: 600px;
+    }
+  }
+  @media (max-width: 850px) {
+    .map-card {
+      padding: 10px;
+    }
+    .map-notes {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 580px) {
+    .map-card {
+      padding: 8px;
+    }
+    .map-notes {
+      margin-top: 18px;
+    }
+    .howto li {
+      grid-template-columns: 44px 1fr;
+    }
+  }
+</style>
