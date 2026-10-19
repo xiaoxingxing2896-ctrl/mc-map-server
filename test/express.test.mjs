@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { apiContract } from './api-contract.mjs';
@@ -102,4 +102,37 @@ test('Express tile upload enforces current roles, PNG bodies and replacement pre
   await db.run("UPDATE users SET role = 'user' WHERE id = 2");
   assert.equal((await upload('world=end&name=x0_z0.png&mode=add', tokens.admin)).status, 403);
   assert.equal((await req('GET', '/api/me', undefined, tokens.admin)).data.role, 'user');
+});
+
+test('Express tile delete removes the upload overlay first, then the base tile', async () => {
+  await fixture();
+  const endDir = join(dir, 'end');
+  mkdirSync(endDir, { recursive: true });
+  writeFileSync(join(endDir, 'x-8_z-8.png'), png());
+  mkdirSync(join(dir, '_uploads', 'end'), { recursive: true });
+  writeFileSync(join(dir, '_uploads', 'end', 'x-7_z-7.png'), png());
+  const remove = async (query, token) => {
+    const r = await fetch(base + '/api/tiles?' + query, { method: 'DELETE', headers: token ? { Authorization: 'Bearer ' + token } : {} });
+    const text = await r.text(); let data; try { data = JSON.parse(text); } catch { data = text; }
+    return { status: r.status, data };
+  };
+  assert.equal((await remove('world=end&name=x-7_z-7.png')).status, 401);
+  assert.equal((await remove('world=end&name=x-7_z-7.png', tokens.alice)).status, 403);
+  assert.equal((await remove('world=end&name=../x-7_z-7.png', tokens.admin)).status, 400);
+  assert.equal((await remove('world=nowhere&name=x-7_z-7.png', tokens.admin)).status, 400);
+  const overlay = await remove('world=end&name=x-7_z-7.png', tokens.admin);
+  assert.equal(overlay.status, 200);
+  assert.deepEqual(overlay.data, { ok: true, removed: 'upload', world: 'end', x: -7, z: -7 });
+  assert.equal(existsSync(join(dir, '_uploads', 'end', 'x-7_z-7.png')), false);
+  assert.equal((await remove('world=end&name=x-7_z-7.png', tokens.admin)).status, 404);
+  const baseTile = await remove('world=end&name=x-8_z-8.png', tokens.owner);
+  assert.equal(baseTile.status, 200);
+  assert.deepEqual(baseTile.data, { ok: true, removed: 'base', world: 'end', x: -8, z: -8 });
+  assert.equal(existsSync(join(endDir, 'x-8_z-8.png')), false);
+  assert.equal(existsSync(join(dir, 'x-10z20.png')), true);
+  // 数据库里已降权的 admin，旧 token 不能再删除
+  writeFileSync(join(endDir, 'x-9_z-9.png'), png());
+  await db.run("UPDATE users SET role = 'user' WHERE id = 2");
+  assert.equal((await remove('world=end&name=x-9_z-9.png', tokens.admin)).status, 403);
+  assert.equal(existsSync(join(endDir, 'x-9_z-9.png')), true);
 });

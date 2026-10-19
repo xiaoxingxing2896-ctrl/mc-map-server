@@ -64,5 +64,9 @@ export function createBucketFromR2(bucket) {
             const type = (obj.httpMetadata && obj.httpMetadata.contentType) || 'image/png';
             return { buf, type };
         },
+        // 删除单个对象；R2 的 delete 对不存在的 key 也幂等返回
+        async deleteTile(key) {
+            return bucket.delete(key);
+        },
     };
 }

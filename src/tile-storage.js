@@ -30,6 +30,11 @@ module.exports = function createTileStorage(root) {
       try { return { buf: await fs.readFile(resolve(key)), type: key.endsWith('.png') ? 'image/png' : key.endsWith('.webp') ? 'image/webp' : 'image/jpeg' }; }
       catch (e) { if (e.code === 'ENOENT') return null; throw e; }
     },
+    async deleteTile(key) {
+      // resolve 已拒绝 .. 与反斜杠，删除范围不会逃出瓦片根目录
+      try { await fs.unlink(resolve(key)); return true; }
+      catch (e) { if (e.code === 'ENOENT') return false; throw e; }
+    },
     async putTile(key, bytes, expected) {
       const target = resolve(key); await fs.mkdir(path.dirname(target), { recursive: true });
       let lock;

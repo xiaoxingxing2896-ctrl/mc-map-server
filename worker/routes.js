@@ -4,6 +4,8 @@ import { verifyJwt, signJwt } from './jwt.js';
 import { hashPassword, verifyPassword } from './password.js';
 import { isValidEmail, sendEmail, issueCode, verifyCode, codeEmailHtml } from './email.js';
 import { verifyTurnstile } from './turnstile.js';
+// 删除接口复用上传接口的坐标解析，命名格式与上传保持一致
+import { tileCoords, WORLDS } from './tile-upload.js';
 
 function isInt(v) {
   return (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isSafeInteger(Number(v));
@@ -393,6 +395,43 @@ export async function deleteMarker(req, ctx) {
   }
   await ctx.db.run("DELETE FROM markers WHERE id = ?", [req.params.id]);
   return json({ message: '已删除' });
+}
+
+// ---------- 瓦片删除 ----------
+// 仅 admin/owner 可删；角色以数据库当前值为准（旧 token 不保留提权）。
+// name 必须先通过 tileCoords 校验，删除范围限定在 _uploads/<world>/ 与对应维度前缀内。
+function isSafeTileKey(key, prefix) {
+  return typeof key === 'string' && key.startsWith(prefix) && !key.includes('..') && !/[\\/]/.test(key.slice(prefix.length));
+}
+export async function deleteTile(req, ctx) {
+  const { user } = await authenticateReq(req, ctx);
+  const current = await ctx.db.get('SELECT role FROM users WHERE id = ?', [user.id]);
+  if (!current || !['admin', 'owner'].includes(current.role)) return json({ error: '权限不足' }, 403);
+  const q = new URL(req.url).searchParams;
+  const world = q.get('world') || 'overworld';
+  const name = q.get('name') || '';
+  const coords = tileCoords(name);
+  if (!WORLDS.includes(world) || !coords || !name.endsWith('.png') || !isSafeTileKey(name, '')) {
+    return json({ error: '维度或文件名无效' }, 400);
+  }
+  // 1) 优先删除上传覆盖层
+  const overlayKey = `_uploads/${world}/x${coords.x}_z${coords.z}.png`;
+  if (await ctx.bucket.headTile(overlayKey)) {
+    await ctx.bucket.deleteTile(overlayKey);
+    return json({ ok: true, removed: 'upload', world, x: coords.x, z: coords.z });
+  }
+  // 2) 再按坐标在基础层里找真实 key（主世界无前缀，nether/、end/ 带前缀）
+  const prefix = world === 'overworld' ? '' : world + '/';
+  let baseKey = null;
+  for (const obj of await ctx.bucket.listTiles(prefix)) {
+    const key = obj && obj.key;
+    if (!isSafeTileKey(key, prefix)) continue;
+    const c = tileCoords(key.slice(prefix.length));
+    if (c && c.x === coords.x && c.z === coords.z) { baseKey = key; break; }
+  }
+  if (!baseKey) return json({ error: '瓦片不存在' }, 404);
+  await ctx.bucket.deleteTile(baseKey);
+  return json({ ok: true, removed: 'base', world, x: coords.x, z: coords.z });
 }
 
 // ---------- 瓦片静态文件（R2） ----------

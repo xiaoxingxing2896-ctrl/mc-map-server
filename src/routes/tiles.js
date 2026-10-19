@@ -29,4 +29,13 @@ router.put('/', require('../middleware').authenticate, express.raw({ type: 'imag
     await send(await uploadTile(request, ctx), res);
   } catch (e) { if (e.status && e.msg) res.status(e.status).json({ error: e.msg }); else next(e); }
 });
+// DELETE /api/tiles?world=&name= —— 删除上传覆盖层或基础层瓦片
+// 中间件先做 JWT 认证与角色拦截，实际删除复用 worker 端 handler（含数据库当前角色校验）。
+router.delete('/', require('../middleware').authenticate, require('../middleware').requireRole('owner', 'admin'), async (req, res, next) => {
+  try {
+    const { deleteTile } = await import('../../worker/routes.js');
+    const request = new Request('https://local.invalid' + req.originalUrl, { method: 'DELETE', headers: { authorization: req.headers.authorization } });
+    await send(await deleteTile(request, ctx), res);
+  } catch (e) { if (e.status && e.msg) res.status(e.status).json({ error: e.msg }); else next(e); }
+});
 module.exports = router;

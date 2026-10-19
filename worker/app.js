@@ -177,6 +177,7 @@ async function dispatch(request, method, path, ctx) {
   if (m && method === 'PUT') return R.setUserRole(withParams(request, { id: m[1] }), ctx);
   if (path === '/api/tiles' && method === 'GET') return R.listTiles(request, ctx);
   if (path === '/api/tiles' && method === 'PUT') return uploadTile(request, ctx);
+  if (path === '/api/tiles' && method === 'DELETE') return R.deleteTile(request, ctx);
   if (path === '/api/markers' && method === 'GET') return R.listMarkers(request, ctx);
   if (path === '/api/markers' && method === 'POST') return R.createMarker(request, ctx);
   m = path.match(/^\/api\/markers\/(\d+)$/);
