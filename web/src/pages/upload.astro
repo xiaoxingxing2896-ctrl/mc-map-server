@@ -118,6 +118,30 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   </div>
 </BaseLayout>
 
+
+<style is:global>
+  /* 瓦片网格由脚本动态生成，拿不到 Astro 的作用域属性，因此这部分规则必须是全局的 */
+  .upload-page .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-top: 14px; }
+  .upload-page .tile { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: var(--surface); }
+  .upload-page .tile-shot { position: relative; aspect-ratio: 1 / 1; background: var(--soft); flex: 0 0 auto; }
+  .upload-page .tile-shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .upload-page .tile-shot.is-broken img { display: none; }
+  .upload-page .tile-shot.is-broken::after { content: '缩略图加载失败'; position: absolute; inset: 0; display: grid; place-items: center; padding: 10px; text-align: center; font-size: 13px; color: var(--muted); }
+  .upload-page .tile-body { display: grid; gap: 3px; padding: 12px 13px 13px; }
+  .upload-page .tile-coord { font-size: 14px; font-weight: 700; }
+  .upload-page .tile-name { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .upload-page .tile-layer { justify-self: start; padding: 1px 9px; border-radius: 20px; background: var(--soft); font-size: 11px; font-weight: 700; color: var(--muted); }
+  .upload-page .tile-layer[data-layer="upload"] { color: var(--primary); }
+  .upload-page .tile-del { margin-top: 8px; min-height: 44px; border: 1px solid var(--line); border-radius: 20px; background: transparent; color: var(--err); font-size: 13px; font-weight: 700; cursor: pointer; }
+  .upload-page .tile-del:hover { border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
+  @media (max-width: 850px) {
+    .upload-page .tile-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  }
+  @media (max-width: 580px) {
+    .upload-page .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  }
+</style>
+
 <script is:inline>
   (() => {
     'use strict';
