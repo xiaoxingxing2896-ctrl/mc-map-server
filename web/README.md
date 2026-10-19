@@ -10,7 +10,46 @@
 | `/history/` | 历程记录（时间轴；图片放 `public/history/`，命名 `YYYY-MM-DD_标题_作者1,作者2.webp`） |
 | `/thanks/` | 特别鸣谢（名单在 `site.json` 的 `thanks`，开源项目为固定三条） |
 | `/account/` | 账号入口：登录 / 注册 / 邮箱验证 / 忘记密码 合并为一个入口，与地图共用 `mcmap_token` 等存储键与全部 `/api/auth/*` 接口；登录成功默认返回地图 |
+| `/transit/` | 交通线路：下界交通示意图，数据驱动 SVG（`web/public/nether-map/`），可点站看详情、缩放平移；`?edit=1` 才显示编辑入口 |
+| `/upload/` | 上传瓦片：仅 admin / owner。列瓦片、上传 1024×1024 PNG（`PUT /api/tiles`）、删除（`DELETE /api/tiles`） |
+| `/wiki/` | 服务器 Wiki：新手线 / 设施手册 / 地图 / 参考，Markdown 页面 + `WikiLayout`（左目录树、面包屑） |
 | 404 | 未找到页 |
+
+## Wiki 目录
+
+`web/src/pages/wiki/` 下是纯 Markdown（frontmatter 指向 `WikiLayout`），新增页面只需加文件：
+
+```
+wiki/index.md                    首页：设施分布示意图 + 三个入口
+wiki/start/                      新手线：总览 / 01 加入 / 02 第一小时 / 03 规则 / 04 指令 / 05 提问
+wiki/facilities/                 设施手册：总表（状态筛选 + 搜索）/ 村民交易所 / 铁农场 / 经验农场 / _template
+wiki/map/overview.md             带编号的设施分布图
+wiki/reference/                  术语表 / 装备与附魔 / 变更日志 / 反馈与报错
+```
+
+- `_template.md` 以下划线开头，不生成路由，只作模板。
+- 目录树写死在 `web/src/layouts/WikiLayout.astro` 的 `groups` 里，加页面要同步加一项。
+- 服务器地址、版本、管理员、设施坐标等信息统一写「以群公告为准 / 待补充」，避免文档过期误导。
+
+## 上传瓦片与删除
+
+`/upload/` 只对 `admin` 与 `owner` 开放（前端按 `/api/me` 的角色显示管理台，后端二次校验数据库中的当前角色）：
+
+| 操作 | 请求 | 说明 |
+|---|---|---|
+| 列表 | `GET /api/tiles?world=` | 返回坐标、URL、版本（etag） |
+| 上传 | `PUT /api/tiles?world=&name=x<X>_z<Z>.png&mode=add\|replace` | 1024×1024 PNG、≤8MB；替换上传层需 `If-Match` |
+| 删除 | `DELETE /api/tiles?world=&name=` | 先删 `_uploads` 覆盖层，再删基础层；成功返回 `removed` |
+
+> 删除接口是新增的 Worker 路由，需要重新部署 Worker 才生效（只更新静态站不够）。
+
+## 交通线路
+
+`/transit/` 用 `web/public/nether-map/` 下的自定义元素渲染：
+
+- `nether-map.js`：组件（渲染 / 缩放 / 选中 / 编辑 / 导出），无依赖；
+- `nether-map-data.js`：线路、站点与坐标，**改数据即改图**；
+- 公开页面隐藏编辑入口，维护时访问 `/transit/?edit=1`；编辑结果存在浏览器 localStorage，需要长期保存请导出 JSON 后覆盖数据文件。
 
 ## 本地运行
 
@@ -97,6 +136,7 @@ Tunnel 方式暴露。API 域名仍由同一服务提供，无需转发层。
 - [x] `/account/` 账号入口（会话最后需求：登录注册合并为单一入口，关联地图登录态）
 - [x] 导航加入"账号"入口
 - [x] 并入原仓库：Worker Assets 改为承载 `web/dist`（`worker/wrangler.toml`），D1/R2/secrets 不动
+- [x] 站点结构扩到 8 个栏目（介绍 / 历程 / 交通 / 地图 / 上传 / Wiki / 致谢 / 账号）
 - [ ] 真机/浏览器全流程回归（导入后请在手机上实际走一遍注册→验证→登录→标注）
 - [ ] 填入真实历程图片与鸣谢名单（`public/history/` 与 `site.json`）
 - [ ] 线上域名配置与正式部署（`npm run site:deploy`）

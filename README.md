@@ -13,6 +13,7 @@
 
 2026-09-08，原生客户端与管理员瓦片接口提交 `b7092ce` 已推送到 `main`，现有 Worker 已部署，原生 Android、后端与 Flutter CI 均通过。线上读取和手机安装启动的实际结果及未验证范围见 [构建与部署验证记录](android_native/VERIFICATION.md)。
 
+- 站点结构：服务器介绍 · 历程记录 · 交通线路 · 地图 · 上传瓦片（admin/owner）· 服务器 Wiki · 特别鸣谢 · 账号
 - 俯视瓦片地图（Leaflet 渲染，MC 世界坐标直接映射，北朝上）
 - 地图上打标注：标题 / 类别（7 类）/ 描述 / 自定义 Emoji 图标 / 公开或私有
 - 侧栏标注列表：搜索、类别筛选、"仅我的标注"
@@ -21,6 +22,19 @@
 - 注册 / 登录（JWT）/ 修改账号信息
 - 三角色权限：user < admin < owner，用户管理面板
 - 首次启动自动创建 Owner 账号（可配置密码或随机生成）
+
+## 站点结构（web/）
+
+| 路由 | 页面 | 说明 |
+|---|---|---|
+| `/` | 地图 | 直接嵌入 `public/index.html`，保留全部地图交互与 API 路径 |
+| `/about/` | 服务器介绍 | 横幅 + 卡片，内容来自 `web/src/data/site.json` |
+| `/history/` | 历程记录 | 时间轴；图片放 `web/public/history/`，命名 `YYYY-MM-DD_标题_作者.webp` |
+| `/transit/` | 交通线路 | 下界交通示意图，数据驱动 SVG，可点站看详情；`?edit=1` 才显示编辑入口 |
+| `/upload/` | 上传瓦片 | 仅 admin / owner：列瓦片、上传 1024×1024 PNG、删除（DELETE /api/tiles） |
+| `/wiki/` | 服务器 Wiki | 新手线 / 设施手册 / 地图 / 参考，Markdown + WikiLayout 目录树 |
+| `/thanks/` | 特别鸣谢 | 按姓名首字母排序，不分贡献 |
+| `/account/` | 账号 | 登录 / 注册 / 邮箱验证 / 重置，与地图共用登录态 |
 
 ## 项目结构
 
@@ -33,8 +47,15 @@
 │   ├── security.js        # 安全响应头 + 内存限流（零依赖手写）
 │   ├── logger.js          # 请求日志
 │   └── routes/            # auth / users / tiles / markers 路由
-├── public/                # 前端单页（index.html + vendor/）
+├── public/                # 地图单页（index.html + vendor/），被 web/ 首页构建期嵌入
+├── web/                   # 站点外壳（Astro 5 静态站）：介绍 / 历程 / 交通 / 上传 / Wiki / 致谢 / 账号
+│   ├── src/pages/         # 各页面；wiki/ 下为 Markdown 内容页
+│   ├── src/layouts/       # BaseLayout（全站外壳）、WikiLayout（Wiki 目录树）
+│   └── public/nether-map/ # 交通线路图组件与数据（nether-map.js / nether-map-data.js）
 ├── worker/                # Serverless 版（零依赖 Workers + D1 + R2，见下方章节）
+├── android_native/        # 原生 Android 客户端（Kotlin + Compose，MC Atlas）
+├── mobile_app/            # 旧 Flutter 客户端（保留对照）
+├── convert-tiles.js       # uNmINeD 瓦片 → 项目坐标命名（x<X>_z<Z>）转换脚本
 ├── scripts/
 │   ├── backup.js          # 数据库备份（保留最近 7 份）
 │   ├── fetch-vendor.js    # 拉取 Leaflet 到本地（脱离 CDN）
@@ -163,7 +184,7 @@ npm run backup     # 复制 mcmap.db 到 backups/，保留最近 7 份
 
 | 原版 | Serverless 版 | 说明 |
 |---|---|---|
-| express 路由 | `worker/app.js` 手写 fetch 路由 | 12 端点 + health + /tiles，语义不变 |
+| express 路由 | `worker/app.js` 手写 fetch 路由 | 认证 / 标注 / 瓦片（含管理员上传与删除）等 19 个端点，语义不变 |
 | sqlite3 | Cloudflare D1 | 表结构 SQL 原样迁移 |
 | bcryptjs | PBKDF2（新）+ 内联 bcryptjs（旧） | 现有 $2a$ 密码可直接登录；新密码为 pbkdf2 格式 |
 | jsonwebtoken | Web Crypto HS256 手写 | 签名/验证等价 |
