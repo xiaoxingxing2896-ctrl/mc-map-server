@@ -29,6 +29,7 @@ description: 服务器上所有对外开放的公共设施一览，可按状态�
 <tr data-status="open" data-search="猪人塔 僵尸猪灵 下界 三号线 经验农场 经验 金"><td>04</td><td><a href="/wiki/facilities/mob-farm/">僵尸猪灵塔</a></td><td>下界 · 三号线</td><td>待补充（<code>/warp 猪人塔</code>）</td><td>已开放</td><td>经验、金锭</td><td>待补充</td><td>使用前确认拉杆状态</td></tr>
 <tr data-status="todo" data-search="铁农场 铁锭 铁"><td>05</td><td><a href="/wiki/facilities/iron-farm/">铁农场</a></td><td>待补充</td><td>待补充</td><td>待补充</td><td>铁锭</td><td>待补充</td><td>是否对外开放以群公告为准</td></tr>
 <tr data-status="todo" data-search="刷怪塔 怪物 掉落物 经验"><td>06</td><td>刷怪塔</td><td>待补充</td><td>待补充</td><td>待补充</td><td>待补充</td><td>待补充</td><td>待补充</td></tr>
+<tr data-status="open" data-search="刷石机 原石 石头 石制建材 主城 广场 丐版"><td>07</td><td><a href="/wiki/facilities/cobblestone/">刷石机</a></td><td>主城 · 广场</td><td>310 / 63 / 366</td><td>已开放</td><td>原石（约 7.5 万 / 小时）</td><td>待补充</td><td>先取箱里的，再考虑开机；用完就关</td></tr>
 </tbody>
 </table>
 </div>
