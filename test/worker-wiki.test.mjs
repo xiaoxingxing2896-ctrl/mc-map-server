@@ -489,7 +489,7 @@ test('all wiki routes return 503 when GITHUB_TOKEN is not configured', async t =
   ]) {
     const res = await call(method, apiPath, { token: tokens.admin, ...extra });
     assert.equal(res.status, 503, method + ' ' + apiPath);
-    assert.deepEqual(res.data, { error: '未配置 GITHUB_TOKEN' });
+    assert.deepEqual(res.data, { error: '未配置 GITHUB_TOKEN（请在 Cloudflare Worker 添加 Secret 后重新部署）' });
   }
   assert.equal(gh.calls.length, 0);
 });

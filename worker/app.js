@@ -168,7 +168,7 @@ export function createApp(deps) {
 
 async function dispatch(request, method, path, ctx) {
   if (path === '/api/health' && method === 'GET') {
-    return R.json({ ok: true, uptime: (Date.now() - STARTED_AT) / 1000, time: new Date().toISOString(), version: VERSION });
+    return R.json({ ok: true, uptime: (Date.now() - STARTED_AT) / 1000, time: new Date().toISOString(), version: VERSION, features: { wikiEditor: !!(ctx.github && ctx.github.token) } });
   }
   if (path === '/api/auth/register' && method === 'POST') return R.register(request, ctx);
   if (path === '/api/auth/login' && method === 'POST') return R.login(request, ctx);

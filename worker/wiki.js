@@ -95,7 +95,7 @@ async function requireEditor(req, ctx) {
 
 function githubContext(ctx) {
   const cfg = ctx.github || {};
-  if (!cfg.token) return { error: json({ error: '未配置 GITHUB_TOKEN' }, 503) };
+  if (!cfg.token) return { error: json({ error: '未配置 GITHUB_TOKEN（请在 Cloudflare Worker 添加 Secret 后重新部署）' }, 503) };
   return {
     client: createGithub({
       token: cfg.token,
