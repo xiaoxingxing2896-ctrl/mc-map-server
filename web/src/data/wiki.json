@@ -1,0 +1,112 @@
+{
+  "sections": [
+    {
+      "key": "start",
+      "label": "新手线",
+      "tag": "START",
+      "pages": [
+        {
+          "slug": "start/index",
+          "label": "新手线总览",
+          "short": "总览"
+        },
+        {
+          "slug": "start/01-join",
+          "label": "01 加入服务器",
+          "short": "01 加入"
+        },
+        {
+          "slug": "start/02-first-hour",
+          "label": "02 第一个小时",
+          "short": "02 第一小时"
+        },
+        {
+          "slug": "start/03-rules",
+          "label": "03 服务器规则",
+          "short": "03 规则"
+        },
+        {
+          "slug": "start/04-commands",
+          "label": "04 常用指令",
+          "short": "04 指令"
+        },
+        {
+          "slug": "start/05-where-to-ask",
+          "label": "05 去哪问人",
+          "short": "05 提问"
+        }
+      ]
+    },
+    {
+      "key": "facilities",
+      "label": "设施手册",
+      "tag": "FACILITIES",
+      "pages": [
+        {
+          "slug": "facilities/index",
+          "label": "设施总表",
+          "short": "总表"
+        },
+        {
+          "slug": "facilities/villager-hall",
+          "label": "村民交易所",
+          "short": "交易所"
+        },
+        {
+          "slug": "facilities/iron-farm",
+          "label": "铁农场",
+          "short": "铁农场"
+        },
+        {
+          "slug": "facilities/mob-farm",
+          "label": "刷怪与经验农场",
+          "short": "经验农场"
+        },
+        {
+          "slug": "facilities/cobblestone",
+          "label": "刷石机",
+          "short": "刷石机"
+        }
+      ]
+    },
+    {
+      "key": "map",
+      "label": "地图",
+      "tag": "MAP",
+      "pages": [
+        {
+          "slug": "map/overview",
+          "label": "设施分布图",
+          "short": "分布图"
+        }
+      ]
+    },
+    {
+      "key": "reference",
+      "label": "参考",
+      "tag": "REFERENCE",
+      "pages": [
+        {
+          "slug": "reference/glossary",
+          "label": "术语表",
+          "short": "术语"
+        },
+        {
+          "slug": "reference/gear",
+          "label": "装备与附魔",
+          "short": "装备"
+        },
+        {
+          "slug": "reference/changelog",
+          "label": "变更日志",
+          "short": "变更"
+        },
+        {
+          "slug": "reference/report",
+          "label": "反馈与报错",
+          "short": "反馈"
+        }
+      ]
+    }
+  ]
+}

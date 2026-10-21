@@ -1,5 +1,6 @@
 ---
 import BaseLayout from './BaseLayout.astro';
+import wikiData from '../data/wiki.json';
 
 const props = Astro.props as Record<string, any>;
 const fm = props.frontmatter ?? props ?? {};
@@ -13,33 +14,38 @@ const pathname = normalize(Astro.url.pathname);
 
 type WikiItem = { href: string; label: string; short: string };
 type WikiGroup = { label: string; tag: string; index?: string; items: WikiItem[] };
+type WikiPage = { slug?: string; label?: string; short?: string };
+type WikiSection = { key?: string; label?: string; tag?: string; pages?: WikiPage[] };
 
-const groups: WikiGroup[] = [
-  { label: '新手线', tag: 'START', index: '/wiki/start/', items: [
-    { href: '/wiki/start/', label: '新手线总览', short: '总览' },
-    { href: '/wiki/start/01-join/', label: '01 加入服务器', short: '01 加入' },
-    { href: '/wiki/start/02-first-hour/', label: '02 第一个小时', short: '02 第一小时' },
-    { href: '/wiki/start/03-rules/', label: '03 服务器规则', short: '03 规则' },
-    { href: '/wiki/start/04-commands/', label: '04 常用指令', short: '04 指令' },
-    { href: '/wiki/start/05-where-to-ask/', label: '05 去哪问人', short: '05 提问' },
-  ] },
-  { label: '设施手册', tag: 'FACILITIES', index: '/wiki/facilities/', items: [
-    { href: '/wiki/facilities/', label: '设施总表', short: '总表' },
-    { href: '/wiki/facilities/villager-hall/', label: '村民交易所', short: '交易所' },
-    { href: '/wiki/facilities/iron-farm/', label: '铁农场', short: '铁农场' },
-    { href: '/wiki/facilities/mob-farm/', label: '刷怪与经验农场', short: '经验农场' },
-    { href: '/wiki/facilities/cobblestone/', label: '刷石机', short: '刷石机' },
-  ] },
-  { label: '地图', tag: 'MAP', items: [
-    { href: '/wiki/map/overview/', label: '设施分布图', short: '分布图' },
-  ] },
-  { label: '参考', tag: 'REFERENCE', items: [
-    { href: '/wiki/reference/glossary/', label: '术语表', short: '术语' },
-    { href: '/wiki/reference/gear/', label: '装备与附魔', short: '装备' },
-    { href: '/wiki/reference/changelog/', label: '变更日志', short: '变更' },
-    { href: '/wiki/reference/report/', label: '反馈与报错', short: '反馈' },
-  ] },
-];
+// 目录来自 web/src/data/wiki.json；文件缺失或字段不合规时降级为空数组，不影响页面渲染。
+const nav = (wikiData ?? {}) as { sections?: WikiSection[] };
+const sections: WikiSection[] = Array.isArray(nav.sections) ? nav.sections : [];
+
+const slugHref = (slug: string) => {
+  const clean = slug.replace(/^\/+|\/+$/g, '');
+  if (clean === 'index') return '/wiki/';
+  if (clean.endsWith('/index')) return '/wiki/' + clean.slice(0, -'/index'.length) + '/';
+  return '/wiki/' + clean + '/';
+};
+
+const groups: WikiGroup[] = sections
+  .filter((section) => section && typeof section === 'object')
+  .map((section) => {
+    const pages = Array.isArray(section.pages) ? section.pages : [];
+    let index: string | undefined;
+    const items: WikiItem[] = pages
+      .filter((page) => page && typeof page.slug === 'string' && page.slug.trim() !== '')
+      .map((page) => {
+        const slug = (page.slug ?? '').trim();
+        const href = slugHref(slug);
+        const label = page.label || slug;
+        const short = page.short || label;
+        if (index === undefined && (slug === 'index' || slug.endsWith('/index'))) index = href;
+        return { href, label, short };
+      });
+    return { label: section.label || section.key || '', tag: section.tag || '', index, items };
+  })
+  .filter((group) => group.items.length > 0);
 
 const flat = groups.flatMap((group) => group.items.map((item) => ({ item, group })));
 const current = flat.find((entry) => normalize(entry.item.href) === pathname) ?? null;
