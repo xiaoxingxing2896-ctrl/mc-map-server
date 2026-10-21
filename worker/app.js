@@ -2,6 +2,7 @@
 // 与 Express 版行为对齐；依赖通过 deps 注入（D1/R2 或本地 shim）。
 import * as R from './routes.js';
 import { uploadTile } from './tile-upload.js';
+import * as W from './wiki.js';
 import { hashPassword } from './password.js';
 import { b64url } from './util.js';
 
@@ -114,6 +115,11 @@ export function createApp(deps) {
     jwtExpiresIn: deps.jwtExpiresIn || 604800,
     mail: deps.mail || { apiKey: '', from: '' },
     turnstile: deps.turnstile || '',
+    github: deps.github || {
+      token: '',
+      repo: 'xiaoxingxing2896-ctrl/mc-map-server',
+      branch: 'main',
+    },
   };
   const globalLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 300 });
   const authLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
@@ -189,5 +195,12 @@ async function dispatch(request, method, path, ctx) {
   }
   m = path.match(/^\/tiles\/(.+)$/);
   if (m && method === 'GET') return R.serveTile(withParams(request, { key: m[1] }), ctx);
+  // Wiki 编辑器（GitHub 仓库读写，仅 admin/owner）
+  if (path === '/api/wiki/list' && method === 'GET') return W.listWiki(request, ctx);
+  if (path === '/api/wiki/file' && method === 'GET') return W.getWikiFile(request, ctx);
+  if (path === '/api/wiki/file' && method === 'PUT') return W.putWikiFile(request, ctx);
+  if (path === '/api/wiki/file' && method === 'DELETE') return W.deleteWikiFile(request, ctx);
+  if (path === '/api/wiki/nav' && method === 'PUT') return W.putWikiNav(request, ctx);
+  if (path === '/api/wiki/image' && method === 'POST') return W.uploadWikiImage(request, ctx);
   return R.json({ error: 'Not Found' }, 404);
 }

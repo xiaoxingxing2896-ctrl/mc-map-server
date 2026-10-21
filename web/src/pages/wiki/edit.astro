@@ -1,0 +1,1800 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="编辑 Wiki">
+  <meta slot="head" name="robots" content="noindex, nofollow" />
+  <div class="wiki-editor" id="wikiEditor">
+    <header class="we-head">
+      <div class="we-head-copy">
+        <span class="section-tag">WIKI CMS</span>
+        <h1>编辑 Wiki</h1>
+        <p>不用碰仓库：改文字、加页面、建栏目、传图片。保存后提交到 GitHub，约 1–2 分钟自动部署生效。</p>
+      </div>
+      <a class="we-btn we-back" href="/wiki/">← 返回 Wiki</a>
+    </header>
+
+    <section id="gate" class="we-card we-gate" aria-labelledby="gateTitle" hidden>
+      <div class="we-gate-mark" aria-hidden="true">🔒</div>
+      <h2 id="gateTitle"></h2>
+      <p id="gateText"></p>
+      <div class="we-gate-actions" id="gateActions"></div>
+    </section>
+
+    <section id="loadingPane" class="we-card we-loading" aria-live="polite">
+      <span class="we-spinner" aria-hidden="true"></span>
+      <p>正在确认登录状态…</p>
+    </section>
+
+    <div id="app" class="we-grid" hidden>
+      <aside class="we-card we-side" aria-label="Wiki 页面列表">
+        <div class="we-side-actions">
+          <button type="button" class="we-btn primary" id="newPageBtn">＋ 新建页面</button>
+          <button type="button" class="we-btn" id="newSectionBtn">＋ 新建栏目</button>
+        </div>
+        <p class="we-repo" id="repoInfo"></p>
+        <div class="we-nav" id="navList"></div>
+        <p class="we-side-tip">图片只会写入 <code>/wiki/img/</code>，不会碰瓦片目录。保存只改仓库文件，部署完成后线上才生效。</p>
+      </aside>
+
+      <section class="we-card we-main" aria-label="编辑区">
+        <div class="we-status" id="statusBar" role="status" aria-live="polite">
+          <span class="we-status-dot" aria-hidden="true"></span>
+          <span class="we-status-text">正在连接…</span>
+        </div>
+
+        <div id="welcomePane" class="we-welcome">
+          <div class="we-welcome-mark" aria-hidden="true">✎</div>
+          <h2>选择一个页面</h2>
+          <p>从左侧列表选页面开始编辑，或者新建页面 / 栏目。所有改动都会提交到 GitHub，约 1–2 分钟后自动部署。</p>
+          <div class="we-welcome-actions">
+            <button type="button" class="we-btn primary" id="welcomeNewPage">新建页面</button>
+            <a class="we-btn" href="/wiki/">查看线上 Wiki</a>
+          </div>
+        </div>
+
+        <div id="editorPane" hidden>
+          <div class="we-editor-head">
+            <div class="we-file">
+              <span class="we-file-path" id="filePath">—</span>
+              <span class="we-badge" id="fileBadge">—</span>
+            </div>
+            <div class="we-toolbar">
+              <button type="button" class="we-btn" id="uploadBtn">传图片</button>
+              <button type="button" class="we-btn" id="refreshBtn">重新加载</button>
+              <button type="button" class="we-btn danger" id="deleteBtn">删除</button>
+              <button type="button" class="we-btn primary" id="saveBtn">保存</button>
+            </div>
+          </div>
+
+          <div class="we-meta">
+            <label class="we-field-inline">显示名
+              <input type="text" id="labelInput" maxlength="60" autocomplete="off" />
+            </label>
+            <label class="we-field-inline">短名
+              <input type="text" id="shortInput" maxlength="12" autocomplete="off" />
+            </label>
+            <button type="button" class="we-btn" id="saveMetaBtn">保存显示名</button>
+            <span class="we-meta-hint" id="metaHint"></span>
+          </div>
+
+          <div class="we-split">
+            <div class="we-pane">
+              <div class="we-pane-head"><span>Markdown</span><span class="we-dirty" id="dirtyBadge" hidden>未保存</span></div>
+              <textarea id="mdInput" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Markdown 内容" placeholder="在这里写 Markdown…"></textarea>
+            </div>
+            <div class="we-pane">
+              <div class="we-pane-head"><span>预览</span><span class="we-pane-note">HTML 已转义，不会执行</span></div>
+              <div class="we-preview" id="preview" aria-label="Markdown 预览"></div>
+            </div>
+          </div>
+          <p class="we-footnote">支持标题、粗体、斜体、行内代码、代码块、链接、图片、无序 / 有序列表、引用、表格、分隔线。图片请用「传图片」上传，只会写入 /wiki/img/ 目录。</p>
+        </div>
+      </section>
+    </div>
+
+    <input type="file" id="imageInput" accept="image/*" hidden />
+
+    <dialog id="pageDialog" class="we-dialog" aria-labelledby="pageDialogTitle">
+      <form id="pageForm" novalidate>
+        <header class="we-dialog-head">
+          <span class="section-tag">NEW PAGE</span>
+          <h2 id="pageDialogTitle">新建页面</h2>
+          <p>文件会创建在 <code>web/src/pages/wiki/&lt;栏目&gt;/&lt;slug&gt;.md</code>，并加入导航。</p>
+        </header>
+        <p class="we-form-error" id="pageError" role="alert" hidden></p>
+        <div class="we-form-field">
+          <label for="npSection">所属栏目</label>
+          <select id="npSection"></select>
+        </div>
+        <div class="we-form-field">
+          <label for="npSlug">slug（文件名）</label>
+          <div class="we-slug-row"><span id="npPrefix">—</span><input type="text" id="npSlug" maxlength="60" autocomplete="off" placeholder="例如 06-farm" /></div>
+          <small>只能用小写字母、数字和连字符，必须以字母或数字开头。</small>
+        </div>
+        <div class="we-form-field">
+          <label for="npTitle">标题</label>
+          <input type="text" id="npTitle" maxlength="60" autocomplete="off" placeholder="例如：刷石机" />
+        </div>
+        <div class="we-form-field">
+          <label for="npShort">短名（导航用，可空）</label>
+          <input type="text" id="npShort" maxlength="12" autocomplete="off" placeholder="例如：刷石机" />
+        </div>
+        <div class="we-form-field">
+          <label for="npDesc">描述（可空）</label>
+          <input type="text" id="npDesc" maxlength="160" autocomplete="off" placeholder="一句话说明这页讲什么" />
+        </div>
+        <footer class="we-dialog-actions">
+          <button type="button" class="we-btn" id="pageCancel">取消</button>
+          <button type="submit" class="we-btn primary" id="pageCreate">创建页面</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="sectionDialog" class="we-dialog" aria-labelledby="sectionDialogTitle">
+      <form id="sectionForm" novalidate>
+        <header class="we-dialog-head">
+          <span class="section-tag">NEW SECTION</span>
+          <h2 id="sectionDialogTitle">新建栏目</h2>
+          <p>会追加一个导航栏目，并创建 <code>&lt;key&gt;/index.md</code> 作为栏目首页（自动加入目录）。</p>
+        </header>
+        <p class="we-form-error" id="sectionError" role="alert" hidden></p>
+        <div class="we-form-field">
+          <label for="nsKey">key（目录名）</label>
+          <input type="text" id="nsKey" maxlength="40" autocomplete="off" placeholder="例如 guide" />
+          <small>只能用小写字母、数字和连字符；会用作目录名与导航 key。</small>
+        </div>
+        <div class="we-form-field">
+          <label for="nsLabel">显示名</label>
+          <input type="text" id="nsLabel" maxlength="40" autocomplete="off" placeholder="例如：进阶指南" />
+        </div>
+        <div class="we-form-field">
+          <label for="nsTag">标签 tag（可空）</label>
+          <input type="text" id="nsTag" maxlength="30" autocomplete="off" placeholder="例如 GUIDE，留空则用 key 大写" />
+        </div>
+        <footer class="we-dialog-actions">
+          <button type="button" class="we-btn" id="sectionCancel">取消</button>
+          <button type="submit" class="we-btn primary" id="sectionCreate">创建栏目</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <noscript>
+      <div class="we-card we-gate"><h2>需要启用 JavaScript</h2><p>Wiki 编辑器依赖浏览器脚本调用管理接口，请启用 JavaScript 后刷新。</p></div>
+    </noscript>
+  </div>
+
+<style is:global>
+  .wiki-editor [hidden]{display:none!important}
+  .wiki-editor{max-width:1280px;margin:0 auto;padding:116px 20px 40px;color:var(--ink)}
+  .wiki-editor h1,.wiki-editor h2,.wiki-editor h3,.wiki-editor p{margin-top:0}
+  .wiki-editor .we-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin:0 0 22px}
+  .wiki-editor .we-head-copy{max-width:760px}
+  .wiki-editor .we-head h1{font-size:clamp(30px,4vw,44px);line-height:1.2;margin:8px 0 10px}
+  .wiki-editor .we-head p{margin:0;color:var(--muted);font-size:15.5px;line-height:1.8}
+  .wiki-editor .we-back{flex:0 0 auto}
+  .wiki-editor .we-card{background:var(--surface);border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow)}
+
+  .wiki-editor .we-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:18px;align-items:start}
+  .wiki-editor .we-side{position:sticky;top:104px;max-height:calc(100dvh - 126px);display:flex;flex-direction:column;gap:12px;padding:16px;min-width:0}
+  .wiki-editor .we-side-actions{display:grid;gap:8px}
+  .wiki-editor .we-repo{margin:0;padding:0 4px;font-size:12px;line-height:1.6;color:var(--muted);word-break:break-all}
+  .wiki-editor .we-repo:empty{display:none}
+  .wiki-editor .we-nav{display:flex;flex-direction:column;gap:18px;overflow-y:auto;min-height:0;padding:2px 2px 4px;overscroll-behavior:contain}
+  .wiki-editor .we-nav-group{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .wiki-editor .we-nav-title{display:flex;align-items:baseline;gap:8px;padding:0 12px 6px;font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--ink);text-transform:uppercase}
+  .wiki-editor .we-nav-title .we-nav-tag{font-style:normal;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wiki-editor .we-nav-item{display:block;width:100%;min-height:44px;padding:9px 12px;border:1px solid transparent;border-radius:14px;background:transparent;color:var(--muted);font-size:14.5px;line-height:1.45;text-align:left;word-break:break-word}
+  .wiki-editor .we-nav-item:hover{background:var(--soft);color:var(--primary)}
+  .wiki-editor .we-nav-item[aria-current]{background:var(--soft);border-color:var(--primary);color:var(--primary);font-weight:700}
+  .wiki-editor .we-nav-item.orphan{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px}
+  .wiki-editor .we-nav-empty{margin:0;padding:4px 12px 6px;font-size:12.5px;line-height:1.6;color:var(--muted)}
+  .wiki-editor .we-side-tip{margin:0;padding:12px 4px 0;border-top:1px solid var(--line);font-size:12px;line-height:1.7;color:var(--muted)}
+  .wiki-editor .we-side-tip code{font-size:11.5px;background:var(--page);border-radius:6px;padding:1px 5px;word-break:break-all}
+
+  .wiki-editor .we-main{padding:18px;min-width:0}
+  .wiki-editor .we-status{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;min-height:46px;padding:10px 14px;margin:0 0 16px;border:1px solid var(--line);border-radius:16px;background:var(--page);font-size:14px;line-height:1.65;color:var(--ink)}
+  .wiki-editor .we-status-dot{flex:0 0 auto;width:9px;height:9px;margin-top:7px;border-radius:50%;background:var(--muted)}
+  .wiki-editor .we-status.busy .we-status-dot{background:var(--primary);animation:we-pulse 1s ease-in-out infinite}
+  .wiki-editor .we-status.ok .we-status-dot{background:#2f9e6f}
+  .wiki-editor .we-status.warn .we-status-dot{background:#d99a2b}
+  .wiki-editor .we-status.error .we-status-dot{background:#d9534f}
+  .wiki-editor .we-status-text{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
+  .wiki-editor .we-status-action{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border:1px solid var(--primary);border-radius:22px;background:var(--surface);color:var(--primary);font-size:13.5px;font-weight:700}
+  .wiki-editor .we-status-action:hover{background:var(--soft)}
+  @keyframes we-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .wiki-editor .we-welcome{padding:52px 20px 56px;text-align:center}
+  .wiki-editor .we-welcome-mark{font-size:38px;color:var(--primary);line-height:1}
+  .wiki-editor .we-welcome h2{font-size:24px;margin:14px 0 10px}
+  .wiki-editor .we-welcome p{max-width:560px;margin:0 auto 20px;color:var(--muted);font-size:15px;line-height:1.8}
+  .wiki-editor .we-welcome-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+
+  .wiki-editor .we-editor-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+  .wiki-editor .we-file{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+  .wiki-editor .we-file-path{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;line-height:1.5;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:12px;padding:5px 10px;word-break:break-all}
+  .wiki-editor .we-badge{flex:0 0 auto;font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--primary);background:var(--soft);border-radius:14px;padding:4px 10px}
+  .wiki-editor .we-badge.missing{color:#d9534f;background:transparent;border:1px solid currentColor}
+  .wiki-editor .we-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+  .wiki-editor .we-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:24px;background:var(--surface);color:var(--ink);font-size:14px;font-weight:600;line-height:1.3;white-space:nowrap;text-align:center}
+  .wiki-editor .we-btn:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+  .wiki-editor .we-btn.primary{background:var(--primary);border-color:var(--primary);color:var(--surface)}
+  .wiki-editor .we-btn.primary:hover:not(:disabled){opacity:.9;color:var(--surface)}
+  .wiki-editor .we-btn.danger{color:#d9534f}
+  .wiki-editor .we-btn.danger:hover:not(:disabled){border-color:#d9534f;color:#d9534f}
+  .wiki-editor .we-btn:disabled{opacity:.45;cursor:not-allowed}
+
+  .wiki-editor .we-meta{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:12px;border:1px solid var(--line);border-radius:18px;background:var(--page)}
+  .wiki-editor .we-field-inline{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+  .wiki-editor .we-field-inline input{min-height:44px;min-width:150px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:14px;font-weight:400}
+  .wiki-editor .we-meta .we-btn{margin-bottom:0}
+  .wiki-editor .we-meta-hint{font-size:12.5px;line-height:1.6;color:var(--muted);padding-bottom:12px}
+
+  .wiki-editor .we-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+  .wiki-editor .we-pane{display:flex;flex-direction:column;min-width:0}
+  .wiki-editor .we-pane-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 2px 6px;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted)}
+  .wiki-editor .we-pane-note{font-weight:400;letter-spacing:0;font-size:11.5px;color:var(--muted)}
+  .wiki-editor .we-dirty{font-size:11.5px;font-weight:700;color:#d9534f;letter-spacing:0}
+  .wiki-editor #mdInput{width:100%;height:min(60vh,560px);min-height:300px;resize:vertical;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--page);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Consolas,"Courier New",monospace;font-size:14px;line-height:1.7;tab-size:2}
+  .wiki-editor #mdInput:disabled{opacity:.6}
+  .wiki-editor .we-preview{height:min(60vh,560px);min-height:300px;overflow:auto;padding:16px 20px;border:1px solid var(--line);border-radius:18px;background:var(--page);font-size:15px;line-height:1.8;overflow-wrap:anywhere}
+  .wiki-editor .we-preview>*:first-child{margin-top:0}
+  .wiki-editor .we-preview h1{font-size:27px;line-height:1.3;margin:20px 0 12px}
+  .wiki-editor .we-preview h2{font-size:22px;line-height:1.35;margin:22px 0 10px}
+  .wiki-editor .we-preview h3{font-size:18px;line-height:1.4;margin:18px 0 8px}
+  .wiki-editor .we-preview h4,.wiki-editor .we-preview h5,.wiki-editor .we-preview h6{font-size:15px;margin:14px 0 6px;color:var(--muted)}
+  .wiki-editor .we-preview p{margin:0 0 12px}
+  .wiki-editor .we-preview ul,.wiki-editor .we-preview ol{margin:0 0 14px;padding-left:22px}
+  .wiki-editor .we-preview li{margin:4px 0}
+  .wiki-editor .we-preview li::marker{color:var(--primary)}
+  .wiki-editor .we-preview a{color:var(--primary);text-decoration:underline;text-underline-offset:3px}
+  .wiki-editor .we-preview strong{font-weight:700}
+  .wiki-editor .we-preview blockquote{margin:14px 0;padding:2px 0 2px 14px;border-left:3px solid var(--line);color:var(--muted)}
+  .wiki-editor .we-preview code{background:var(--soft);border-radius:7px;padding:1px 6px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em}
+  .wiki-editor .we-preview pre{margin:14px 0;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow-x:auto}
+  .wiki-editor .we-preview pre code{background:none;padding:0;white-space:pre;font-size:13px}
+  .wiki-editor .we-preview hr{border:0;border-top:1px solid var(--line);margin:20px 0}
+  .wiki-editor .we-preview img{max-width:100%;height:auto;border-radius:14px;border:1px solid var(--line)}
+  .wiki-editor .we-table-wrap{margin:14px 0;overflow-x:auto}
+  .wiki-editor .we-preview table{width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .wiki-editor .we-preview th,.wiki-editor .we-preview td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  .wiki-editor .we-preview th{background:var(--soft);font-size:13px;white-space:nowrap}
+  .wiki-editor .we-preview tr:last-child td{border-bottom:0}
+  .wiki-editor .we-preview-empty{margin:0;color:var(--muted);font-size:13.5px}
+  .wiki-editor .we-preview-note{margin:0 0 12px;padding:6px 10px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:12px}
+  .wiki-editor .we-footnote{margin:14px 2px 0;font-size:12.5px;line-height:1.7;color:var(--muted)}
+
+  .wiki-editor .we-loading{display:flex;align-items:center;justify-content:center;gap:12px;padding:44px 20px;color:var(--muted);font-size:15px}
+  .wiki-editor .we-loading p{margin:0}
+  .wiki-editor .we-spinner{width:20px;height:20px;border:2px solid var(--line);border-top-color:var(--primary);border-radius:50%;animation:we-spin .8s linear infinite}
+  @keyframes we-spin{to{transform:rotate(360deg)}}
+
+  .wiki-editor .we-gate{padding:38px 28px;text-align:center}
+  .wiki-editor .we-gate-mark{font-size:36px;line-height:1}
+  .wiki-editor .we-gate h2{font-size:24px;margin:12px 0 8px}
+  .wiki-editor .we-gate p{max-width:560px;margin:0 auto 20px;color:var(--muted);line-height:1.8;font-size:15px}
+  .wiki-editor .we-gate-actions{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+
+  .wiki-editor .we-dialog{border:1px solid var(--line);border-radius:26px;background:var(--surface);color:var(--ink);padding:0;width:min(540px,calc(100vw - 32px));max-height:calc(100dvh - 40px);box-shadow:var(--shadow);overflow:auto}
+  .wiki-editor .we-dialog::backdrop{background:#07101ccc;backdrop-filter:blur(6px)}
+  .wiki-editor .we-dialog form{display:grid;gap:14px;padding:24px}
+  .wiki-editor .we-dialog-head h2{font-size:24px;margin:6px 0 6px}
+  .wiki-editor .we-dialog-head p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.7}
+  .wiki-editor .we-dialog-head code{font-size:12px;background:var(--page);border-radius:6px;padding:1px 5px;word-break:break-all}
+  .wiki-editor .we-form-field{display:grid;gap:6px}
+  .wiki-editor .we-form-field label{font-size:12.5px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+  .wiki-editor .we-form-field input,.wiki-editor .we-form-field select{width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--page);color:var(--ink);font-size:15px}
+  .wiki-editor .we-form-field small{font-size:12px;line-height:1.6;color:var(--muted)}
+  .wiki-editor .we-slug-row{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:12px;background:var(--page);padding-left:12px}
+  .wiki-editor .we-slug-row span{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;color:var(--muted);white-space:nowrap}
+  .wiki-editor .we-slug-row input{border:0;background:transparent;border-radius:0;padding-left:4px}
+  .wiki-editor .we-form-error{margin:0;padding:10px 12px;border:1px solid #d9534f;border-radius:12px;color:var(--ink);font-size:13px;line-height:1.6}
+  .wiki-editor .we-dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding-top:4px}
+
+  @media (max-width: 1100px){
+    .wiki-editor .we-split{grid-template-columns:1fr}
+    .wiki-editor #mdInput,.wiki-editor .we-preview{height:min(50vh,420px);min-height:260px}
+  }
+
+  @media (max-width: 850px){
+    .wiki-editor{padding:104px 14px 32px}
+    .wiki-editor .we-grid{grid-template-columns:1fr}
+    .wiki-editor .we-side{position:static;max-height:none;padding:14px}
+    .wiki-editor .we-side-actions{grid-template-columns:1fr 1fr}
+    .wiki-editor .we-nav{flex-direction:row;overflow-x:auto;overflow-y:visible;gap:14px;padding-bottom:8px;scroll-snap-type:x proximity}
+    .wiki-editor .we-nav-group{flex:0 0 230px;max-width:280px;scroll-snap-align:start}
+    .wiki-editor .we-side-tip{padding-top:8px}
+    .wiki-editor .we-split{grid-template-columns:1fr}
+    .wiki-editor #mdInput,.wiki-editor .we-preview{height:min(50vh,420px);min-height:260px}
+    .wiki-editor .we-main{padding:14px}
+  }
+
+  @media (max-width: 580px){
+    .wiki-editor{padding-top:164px}
+    .wiki-editor .we-head{align-items:flex-start}
+    .wiki-editor .we-head h1{font-size:30px}
+    .wiki-editor .we-side-actions{grid-template-columns:1fr}
+    .wiki-editor .we-toolbar{display:grid;grid-template-columns:1fr 1fr;width:100%}
+    .wiki-editor .we-toolbar .we-btn{width:100%}
+    .wiki-editor .we-meta{padding:10px}
+    .wiki-editor .we-field-inline,.wiki-editor .we-field-inline input{width:100%}
+    .wiki-editor .we-meta .we-btn{width:100%}
+    .wiki-editor .we-meta-hint{padding-bottom:0}
+    .wiki-editor .we-status{padding:10px 12px}
+    .wiki-editor .we-status-action{width:100%}
+    .wiki-editor .we-welcome{padding:34px 12px 40px}
+    .wiki-editor .we-dialog form{padding:18px}
+    .wiki-editor .we-dialog-actions{display:grid;grid-template-columns:1fr 1fr}
+    .wiki-editor .we-dialog-actions .we-btn{width:100%}
+  }
+</style>
+
+<script>
+  // ============================================================
+  // 常量 / 类型 / 状态
+  // ============================================================
+  const TOKEN_KEY = 'mcmap_token';
+  const LOGIN_URL = '/account/?next=/wiki/edit/';
+  const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+  const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
+  type NavPage = { slug: string; label: string; short: string };
+  type NavSection = { key: string; label: string; tag: string; pages: NavPage[] };
+  type Nav = { sections: NavSection[] };
+  type StatusAction = { label: string; run?: () => void | Promise<void>; href?: string };
+  type StatusKind = 'busy' | 'ok' | 'warn' | 'error' | 'info';
+  type PageSelection = { slug: string; path: string; navEntry: NavPage | null; sectionKey: string | null };
+  type RequestOptions = {
+    method?: string;
+    body?: BodyInit | null;
+    headers?: HeadersInit;
+    raw?: boolean;
+    timeout?: number;
+  };
+
+  class ApiError extends Error {
+    status: number;
+    constructor(message: string, status: number) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+    }
+  }
+
+  const state: {
+    token: string;
+    me: { id?: number; username?: string; role?: string } | null;
+    nav: Nav;
+    files: string[];
+    navSha: string;
+    repo: string;
+    branch: string;
+    selected: PageSelection | null;
+    fileSha: string | null;
+    original: string;
+    dirty: boolean;
+    busy: boolean;
+    fileMissing: boolean;
+  } = {
+    token: '',
+    me: null,
+    nav: { sections: [] },
+    files: [],
+    navSha: '',
+    repo: '',
+    branch: '',
+    selected: null,
+    fileSha: null,
+    original: '',
+    dirty: false,
+    busy: false,
+    fileMissing: false,
+  };
+
+  function qs<T extends Element = HTMLElement>(selector: string): T {
+    const node = document.querySelector(selector);
+    if (!node) throw new Error('页面缺少节点：' + selector);
+    return node as T;
+  }
+
+  const gate = qs<HTMLElement>('#gate');
+  const gateTitle = qs<HTMLElement>('#gateTitle');
+  const gateText = qs<HTMLElement>('#gateText');
+  const gateActions = qs<HTMLElement>('#gateActions');
+  const loadingPane = qs<HTMLElement>('#loadingPane');
+  const app = qs<HTMLElement>('#app');
+  const statusBar = qs<HTMLElement>('#statusBar');
+  const navList = qs<HTMLElement>('#navList');
+  const repoInfo = qs<HTMLElement>('#repoInfo');
+  const welcomePane = qs<HTMLElement>('#welcomePane');
+  const editorPane = qs<HTMLElement>('#editorPane');
+  const filePathEl = qs<HTMLElement>('#filePath');
+  const fileBadge = qs<HTMLElement>('#fileBadge');
+  const labelInput = qs<HTMLInputElement>('#labelInput');
+  const shortInput = qs<HTMLInputElement>('#shortInput');
+  const saveMetaBtn = qs<HTMLButtonElement>('#saveMetaBtn');
+  const metaHint = qs<HTMLElement>('#metaHint');
+  const saveBtn = qs<HTMLButtonElement>('#saveBtn');
+  const deleteBtn = qs<HTMLButtonElement>('#deleteBtn');
+  const refreshBtn = qs<HTMLButtonElement>('#refreshBtn');
+  const uploadBtn = qs<HTMLButtonElement>('#uploadBtn');
+  const mdInput = qs<HTMLTextAreaElement>('#mdInput');
+  const previewEl = qs<HTMLElement>('#preview');
+  const dirtyBadge = qs<HTMLElement>('#dirtyBadge');
+  const imageInput = qs<HTMLInputElement>('#imageInput');
+
+  // ============================================================
+  // 通用工具
+  // ============================================================
+  function readToken(): string {
+    try {
+      return localStorage.getItem(TOKEN_KEY) || '';
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function clearToken(): void {
+    state.token = '';
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch (err) {
+      /* localStorage 不可用时忽略 */
+    }
+  }
+
+  function make<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function statusHint(status: number): string {
+    if (status === 400) return '请求参数无效（HTTP 400）。';
+    if (status === 403) return '权限不足，当前账号不能执行这个操作。';
+    if (status === 404) return '对应的资源不存在（HTTP 404）。';
+    if (status === 409) return '文件已被他人修改，请刷新后重试。';
+    if (status === 413) return '文件太大（HTTP 413）。';
+    if (status === 415) return '文件类型不支持（HTTP 415）。';
+    if (status === 429) return '请求过于频繁，请稍后再试。';
+    if (status === 503) return '服务端未配置 GITHUB_TOKEN，暂时无法读写仓库。';
+    if (status >= 500) return '服务器出错了（HTTP ' + status + '），请稍后重试。';
+    return '请求失败（HTTP ' + status + '）。';
+  }
+
+  function errorText(err: any): string {
+    if (err instanceof ApiError) return err.message;
+    if (err && typeof err.message === 'string' && err.message) return err.message;
+    return '网络连接失败，请检查网络后重试。';
+  }
+
+  function commitAction(data: any): StatusAction | undefined {
+    const url = data && typeof data.url === 'string' ? data.url : '';
+    if (!/^https?:\/\//i.test(url)) return undefined;
+    return { label: '查看提交', href: url };
+  }
+
+  // ============================================================
+  // 网络层
+  // ============================================================
+  async function api(path: string, options: RequestOptions = {}): Promise<any> {
+    const headers = new Headers(options.headers || {});
+    if (state.token) headers.set('Authorization', 'Bearer ' + state.token);
+    if (options.body !== undefined && !options.raw && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), options.timeout || 25000);
+    let response: Response;
+    try {
+      response = await fetch(path, {
+        method: options.method || 'GET',
+        headers,
+        body: options.body,
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      window.clearTimeout(timer);
+      if (err && err.name === 'AbortError') throw new ApiError('请求超时，请检查网络后重试。', 0);
+      throw new ApiError('网络连接失败，请检查网络后重试。', 0);
+    }
+    window.clearTimeout(timer);
+
+    const rawText = await response.text();
+    let data: any = null;
+    if (rawText) {
+      try {
+        data = JSON.parse(rawText);
+      } catch (err) {
+        data = null;
+      }
+    }
+
+    if (response.status === 401) {
+      clearToken();
+      showLoginGate('登录已过期，请重新登录后再编辑。');
+      throw new ApiError((data && data.error) || '请先登录。', 401);
+    }
+    if (!response.ok) {
+      const message = data && data.error ? String(data.error) : statusHint(response.status);
+      throw new ApiError(message, response.status);
+    }
+    return data === null ? {} : data;
+  }
+
+  // ============================================================
+  // 状态条 / 抽屉页
+  // ============================================================
+  function setStatus(kind: StatusKind, text: string, action?: StatusAction): void {
+    statusBar.className = 'we-status ' + kind;
+    statusBar.replaceChildren();
+    statusBar.append(make('span', 'we-status-dot'));
+    (statusBar.firstElementChild as HTMLElement).setAttribute('aria-hidden', 'true');
+    statusBar.append(make('span', 'we-status-text', text));
+    if (!action) return;
+    if (action.href) {
+      const link = make('a', 'we-status-action', action.label);
+      link.href = action.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      statusBar.append(link);
+      return;
+    }
+    if (action.run) {
+      const button = make('button', 'we-status-action', action.label);
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        if (state.busy) return;
+        button.disabled = true;
+        Promise.resolve(action.run ? action.run() : undefined)
+          .catch((err: any) => {
+            if (err && err.status === 401) return;
+            setStatus('error', '操作失败：' + errorText(err), { label: '重试', run: action.run });
+          })
+          .finally(() => {
+            button.disabled = false;
+          });
+      });
+      statusBar.append(button);
+    }
+  }
+
+  function showGate(title: string, text: string, actions: Array<{ label: string; href?: string; run?: () => void; primary?: boolean }>): void {
+    gate.hidden = false;
+    loadingPane.hidden = true;
+    app.hidden = true;
+    gateTitle.textContent = title;
+    gateText.textContent = text;
+    gateActions.replaceChildren();
+    actions.forEach((item) => {
+      if (item.href) {
+        const link = make('a', 'we-btn' + (item.primary ? ' primary' : ''), item.label);
+        link.href = item.href;
+        gateActions.append(link);
+        return;
+      }
+      const button = make('button', 'we-btn' + (item.primary ? ' primary' : ''), item.label);
+      button.type = 'button';
+      if (item.run) button.addEventListener('click', item.run);
+      gateActions.append(button);
+    });
+  }
+
+  function showLoginGate(message: string): void {
+    showGate('请先登录', message + ' 登录成功后会自动回到这个页面。', [
+      { label: '去登录', href: LOGIN_URL, primary: true },
+      { label: '返回 Wiki', href: '/wiki/' },
+    ]);
+  }
+
+  function showDenied(role: string): void {
+    showGate(
+      '无权限编辑 Wiki',
+      '当前账号的角色是「' + role + '」，只有 admin / owner 可以编辑。如果你需要权限，请联系服务器管理员调整角色。',
+      [
+        { label: '返回 Wiki', href: '/wiki/', primary: true },
+        { label: '切换账号', href: LOGIN_URL },
+      ]
+    );
+  }
+
+  function showGateError(message: string): void {
+    showGate('无法加载编辑器', message, [
+      { label: '重试', run: () => window.location.reload(), primary: true },
+      { label: '返回 Wiki', href: '/wiki/' },
+    ]);
+  }
+
+  // ============================================================
+  // 导航数据
+  // ============================================================
+  function normalizeNav(raw: any): Nav {
+    const nav: any = raw && typeof raw === 'object' ? JSON.parse(JSON.stringify(raw)) : { sections: [] };
+    if (!Array.isArray(nav.sections)) nav.sections = [];
+    nav.sections = nav.sections.filter((section: any) => section && typeof section === 'object' && typeof section.key === 'string' && section.key);
+    nav.sections.forEach((section: any) => {
+      section.label = typeof section.label === 'string' && section.label ? section.label : section.key;
+      section.tag = typeof section.tag === 'string' ? section.tag : '';
+      if (!Array.isArray(section.pages)) section.pages = [];
+      section.pages = section.pages.filter((page: any) => page && typeof page === 'object' && typeof page.slug === 'string' && page.slug);
+      section.pages.forEach((page: any) => {
+        page.label = typeof page.label === 'string' && page.label ? page.label : page.slug;
+        page.short = typeof page.short === 'string' && page.short ? page.short : page.label;
+      });
+    });
+    return nav as Nav;
+  }
+
+  function cloneNav(): Nav {
+    return JSON.parse(JSON.stringify(state.nav)) as Nav;
+  }
+
+  function findNavPage(slug: string): { section: NavSection; page: NavPage; index: number } | null {
+    for (const section of state.nav.sections) {
+      const index = section.pages.findIndex((page) => page.slug === slug);
+      if (index >= 0) return { section, page: section.pages[index], index };
+    }
+    return null;
+  }
+
+  function firstNavPage(): NavPage | null {
+    for (const section of state.nav.sections) {
+      if (section.pages.length) return section.pages[0];
+    }
+    return null;
+  }
+
+  function removePageFromNav(nav: Nav, slug: string): boolean {
+    for (const section of nav.sections) {
+      const index = section.pages.findIndex((page) => page.slug === slug);
+      if (index >= 0) {
+        section.pages.splice(index, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async function loadList(): Promise<void> {
+    const data = await api('/api/wiki/list');
+    state.nav = normalizeNav(data && data.nav);
+    state.files = Array.isArray(data && data.files) ? data.files.filter((file: any) => typeof file === 'string') : [];
+    state.navSha = data && typeof data.navSha === 'string' ? data.navSha : '';
+    state.repo = data && typeof data.repo === 'string' ? data.repo : '';
+    state.branch = data && typeof data.branch === 'string' ? data.branch : '';
+    repoInfo.textContent = state.repo ? state.repo + ' · ' + (state.branch || 'main') : '';
+    renderSidebar();
+    if (state.selected) syncSelectionMeta();
+  }
+
+  async function putNav(nav: Nav): Promise<any> {
+    const payload: any = { nav: nav };
+    if (state.navSha) payload.sha = state.navSha;
+    try {
+      const data = await api('/api/wiki/nav', { method: 'PUT', body: JSON.stringify(payload), timeout: 40000 });
+      state.nav = normalizeNav(nav);
+      return data;
+    } catch (err: any) {
+      if (err.status === 409) throw new ApiError('导航数据已被他人修改，请刷新后重试。', 409);
+      throw err;
+    }
+  }
+
+  // ============================================================
+  // 左侧导航渲染
+  // ============================================================
+  function navButton(slug: string, label: string, orphan: boolean): HTMLButtonElement {
+    const button = make('button', 'we-nav-item' + (orphan ? ' orphan' : ''), label);
+    button.type = 'button';
+    button.title = slug + '.md';
+    if (state.selected && state.selected.slug === slug) button.setAttribute('aria-current', 'true');
+    button.addEventListener('click', () => {
+      void selectPage(slug);
+    });
+    return button;
+  }
+
+  function renderSidebar(): void {
+    navList.replaceChildren();
+    const navSlugs = new Set<string>();
+    let navCount = 0;
+
+    state.nav.sections.forEach((section) => {
+      const group = make('div', 'we-nav-group');
+      const title = make('div', 'we-nav-title');
+      title.append(make('span', 'we-nav-label', section.label || section.key));
+      if (section.tag) title.append(make('em', 'we-nav-tag', section.tag));
+      group.append(title);
+      if (!section.pages.length) {
+        group.append(make('p', 'we-nav-empty', '（暂无页面）'));
+      }
+      section.pages.forEach((page) => {
+        navSlugs.add(page.slug);
+        navCount += 1;
+        group.append(navButton(page.slug, page.label || page.slug, false));
+      });
+      navList.append(group);
+    });
+
+    const orphans = state.files
+      .filter((file) => file.slice(-3) === '.md')
+      .map((file) => file.slice(0, -3))
+      .filter((slug) => !navSlugs.has(slug))
+      .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+
+    if (orphans.length) {
+      const group = make('div', 'we-nav-group');
+      const title = make('div', 'we-nav-title');
+      title.append(make('span', 'we-nav-label', '未编入导航'));
+      title.append(make('em', 'we-nav-tag', 'ORPHAN'));
+      group.append(title);
+      orphans.forEach((slug) => group.append(navButton(slug, slug, true)));
+      navList.append(group);
+    }
+
+    if (!navCount && !orphans.length) {
+      navList.append(make('p', 'we-nav-empty', '导航还是空的。先点上面「新建栏目」，再新建页面。'));
+    }
+  }
+
+  function syncSelectionMeta(): void {
+    const record = state.selected ? findNavPage(state.selected.slug) : null;
+    if (state.selected) {
+      state.selected.navEntry = record ? record.page : null;
+      state.selected.sectionKey = record ? record.section.key : null;
+    }
+    labelInput.value = record ? record.page.label : '';
+    shortInput.value = record ? record.page.short : '';
+    const locked = state.busy || mdInput.disabled;
+    labelInput.disabled = !record;
+    shortInput.disabled = !record;
+    saveMetaBtn.disabled = !record || state.busy;
+    metaHint.textContent = record ? '' : '此页面未编入导航，显示名不可在这里修改。';
+    fileBadge.textContent = state.fileMissing ? '文件缺失' : record ? '导航页面' : '未编入导航';
+    fileBadge.classList.toggle('missing', state.fileMissing);
+    deleteBtn.disabled = !state.fileSha || state.busy;
+    saveBtn.disabled = !state.selected || locked;
+    uploadBtn.disabled = !state.selected || locked;
+  }
+
+  function showWelcome(): void {
+    welcomePane.hidden = false;
+    editorPane.hidden = true;
+  }
+
+  function clearSelection(): void {
+    state.selected = null;
+    state.fileSha = null;
+    state.original = '';
+    state.dirty = false;
+    state.fileMissing = false;
+    mdInput.value = '';
+    mdInput.disabled = true;
+    previewEl.innerHTML = '';
+    dirtyBadge.hidden = true;
+    filePathEl.textContent = '—';
+    fileBadge.textContent = '—';
+    fileBadge.classList.remove('missing');
+    labelInput.value = '';
+    shortInput.value = '';
+    labelInput.disabled = true;
+    shortInput.disabled = true;
+    saveMetaBtn.disabled = true;
+    deleteBtn.disabled = true;
+    saveBtn.disabled = true;
+    metaHint.textContent = '';
+    showWelcome();
+    renderSidebar();
+  }
+
+  function updateDirty(): void {
+    state.dirty = !!state.selected && mdInput.value !== state.original;
+    dirtyBadge.hidden = !state.dirty;
+    saveBtn.textContent = state.dirty ? '保存修改' : '保存';
+  }
+
+  function setEditorContent(content: string): void {
+    mdInput.disabled = false;
+    mdInput.placeholder = '在这里写 Markdown…';
+    mdInput.value = content;
+    renderPreview();
+  }
+
+  function beginLoading(path: string): void {
+    welcomePane.hidden = true;
+    editorPane.hidden = false;
+    mdInput.disabled = true;
+    mdInput.placeholder = '加载中…';
+    mdInput.value = '';
+    previewEl.innerHTML = '<p class="we-preview-empty">加载中…</p>';
+    dirtyBadge.hidden = true;
+    filePathEl.textContent = path;
+    fileBadge.textContent = '加载中';
+    fileBadge.classList.remove('missing');
+    metaHint.textContent = '';
+    labelInput.value = '';
+    shortInput.value = '';
+    saveBtn.disabled = true;
+    deleteBtn.disabled = true;
+  }
+
+  async function selectPage(slug: string, options: { force?: boolean } = {}): Promise<void> {
+    if (state.busy) return;
+    if (!options.force && state.dirty && !window.confirm('当前页面有未保存的修改，确定离开吗？')) return;
+    const record = findNavPage(slug);
+    const selection: PageSelection = {
+      slug: slug,
+      path: slug + '.md',
+      navEntry: record ? record.page : null,
+      sectionKey: record ? record.section.key : null,
+    };
+    state.selected = selection;
+    state.fileSha = null;
+    state.original = '';
+    state.dirty = false;
+    state.fileMissing = false;
+    beginLoading(selection.path);
+    renderSidebar();
+    syncSelectionMeta();
+    setStatus('busy', '正在加载 ' + selection.path + '…');
+
+    try {
+      const data = await api('/api/wiki/file?path=' + encodeURIComponent(selection.path));
+      if (!state.selected || state.selected.slug !== slug) return;
+      state.fileSha = typeof data.sha === 'string' ? data.sha : null;
+      state.original = typeof data.content === 'string' ? data.content : '';
+      state.fileMissing = false;
+      setEditorContent(state.original);
+      updateDirty();
+      syncSelectionMeta();
+      setStatus(
+        'ok',
+        '已加载 ' + selection.path + (state.fileSha ? '（sha ' + state.fileSha.slice(0, 7) + '）' : '') + '。'
+      );
+    } catch (err: any) {
+      if (!state.selected || state.selected.slug !== slug) return;
+      if (err.status === 401) return;
+      if (err.status === 404) {
+        state.fileMissing = true;
+        state.fileSha = null;
+        state.original = '';
+        setEditorContent('');
+        updateDirty();
+        syncSelectionMeta();
+        setStatus('info', '导航里已有这一项，但文件还不存在。写内容后保存会创建 ' + selection.path + '。');
+        return;
+      }
+      mdInput.disabled = true;
+      mdInput.value = '';
+      previewEl.innerHTML = '<p class="we-preview-empty">加载失败</p>';
+      syncSelectionMeta();
+      fileBadge.textContent = '加载失败';
+      setStatus('error', '加载失败：' + errorText(err), { label: '重新加载', run: () => selectPage(slug, { force: true }) });
+    }
+  }
+
+  // ============================================================
+  // 保存 / 删除 / 修改显示名
+  // ============================================================
+  async function saveFile(): Promise<void> {
+    if (!state.selected || state.busy) return;
+    if (!mdInput.value.trim() && !window.confirm('内容为空，仍要保存吗？')) return;
+    const path = state.selected.path;
+    const snapshot = mdInput.value;
+    const sha = state.fileSha || undefined;
+    state.busy = true;
+    saveBtn.disabled = true;
+    setStatus('busy', '正在提交 ' + path + '…');
+
+    try {
+      const data = await api('/api/wiki/file', {
+        method: 'PUT',
+        body: JSON.stringify({ path: path, content: snapshot, sha: sha }),
+        timeout: 40000,
+      });
+      state.original = snapshot;
+      state.fileMissing = false;
+      updateDirty();
+
+      let shaNote = '';
+      try {
+        const fresh = await api('/api/wiki/file?path=' + encodeURIComponent(path));
+        state.fileSha = typeof fresh.sha === 'string' ? fresh.sha : null;
+      } catch (err: any) {
+        if (err.status === 401) return;
+        state.fileSha = null;
+        shaNote = '（新 sha 刷新失败，下次保存前请先「重新加载」）';
+      }
+
+      try {
+        await loadList();
+      } catch (err: any) {
+        if (err.status === 401) return;
+        /* 保存已经成功，目录刷新失败不影响结果 */
+      }
+      syncSelectionMeta();
+      setStatus('ok', '已提交，约 1–2 分钟后自动部署生效。' + shaNote, commitAction(data));
+    } catch (err: any) {
+      if (err.status === 401) return;
+      if (err.status === 409) {
+        setStatus('error', '文件已被他人修改，请刷新后重试。', {
+          label: '重新加载文件',
+          run: () => selectPage(path.slice(0, -3), { force: true }),
+        });
+      } else {
+        setStatus('error', '保存失败：' + errorText(err), { label: '重试保存', run: saveFile });
+      }
+    } finally {
+      state.busy = false;
+      saveBtn.disabled = !state.selected || mdInput.disabled;
+      updateDirty();
+    }
+  }
+
+  async function saveMeta(): Promise<void> {
+    if (!state.selected || state.busy) return;
+    const record = findNavPage(state.selected.slug);
+    if (!record) return;
+    const label = labelInput.value.trim();
+    const short = shortInput.value.trim() || label.slice(0, 6);
+    if (!label) {
+      setStatus('error', '显示名不能为空。');
+      labelInput.focus();
+      return;
+    }
+    const slug = state.selected.slug;
+    state.busy = true;
+    saveMetaBtn.disabled = true;
+    setStatus('busy', '正在保存显示名…');
+    try {
+      const nav = cloneNav();
+      const section = nav.sections.find((item) => item.key === record.section.key);
+      const entry = section ? section.pages.find((page) => page.slug === slug) : null;
+      if (!entry) throw new ApiError('这个页面已不在导航中，请刷新后重试。', 409);
+      entry.label = label;
+      entry.short = short;
+      const data = await putNav(nav);
+      try {
+        await loadList();
+      } catch (refreshErr: any) {
+        if (refreshErr.status === 401) return;
+        state.nav = normalizeNav(nav);
+        syncSelectionMeta();
+        setStatus('ok', '显示名已提交，但目录刷新失败：' + errorText(refreshErr), commitAction(data));
+        return;
+      }
+      syncSelectionMeta();
+      setStatus('ok', '显示名已更新，导航数据已提交，约 1–2 分钟后自动部署生效。', commitAction(data));
+    } catch (err: any) {
+      if (err.status === 401) return;
+      if (err.status === 409) {
+        setStatus('warn', '导航数据已被他人修改，请刷新后重试。', {
+          label: '重新加载目录',
+          run: async () => {
+            await loadList();
+            setStatus('ok', '目录已更新，可以重新修改显示名。');
+          },
+        });
+      } else {
+        setStatus('error', '保存显示名失败：' + errorText(err), { label: '重试', run: saveMeta });
+      }
+    } finally {
+      state.busy = false;
+      saveMetaBtn.disabled = !findNavPage(state.selected ? state.selected.slug : '');
+    }
+  }
+
+  async function deleteFile(): Promise<void> {
+    if (!state.selected || state.busy) return;
+    if (!state.fileSha) {
+      setStatus('error', '文件不存在或尚未加载完成，无法删除。');
+      return;
+    }
+    const slug = state.selected.slug;
+    const path = state.selected.path;
+    const label = state.selected.navEntry ? state.selected.navEntry.label : slug;
+    const confirmed = window.confirm(
+      '确定删除「' + label + '」？\n\n文件：' + path + '\n删除后无法撤销；如果它在导航里，导航项也会一并移除。'
+    );
+    if (!confirmed) return;
+
+    state.busy = true;
+    deleteBtn.disabled = true;
+    setStatus('busy', '正在删除 ' + path + '…');
+    try {
+      await api('/api/wiki/file', {
+        method: 'DELETE',
+        body: JSON.stringify({ path: path, sha: state.fileSha }),
+        timeout: 40000,
+      });
+    } catch (err: any) {
+      state.busy = false;
+      deleteBtn.disabled = false;
+      if (err.status === 401) return;
+      if (err.status === 409) {
+        setStatus('error', '文件已被他人修改，请刷新后重试。', {
+          label: '重新加载文件',
+          run: () => selectPage(slug, { force: true }),
+        });
+      } else {
+        setStatus('error', '删除失败：' + errorText(err), { label: '重试删除', run: deleteFile });
+      }
+      return;
+    }
+
+    let navError: any = null;
+    let navData: any = null;
+    if (findNavPage(slug)) {
+      try {
+        const nav = cloneNav();
+        removePageFromNav(nav, slug);
+        navData = await putNav(nav);
+      } catch (err: any) {
+        if (err.status === 401) {
+          state.busy = false;
+          return;
+        }
+        navError = err;
+      }
+    }
+    try {
+      await loadList();
+    } catch (err) {
+      /* 删除已经成功，目录稍后刷新即可 */
+    }
+    clearSelection();
+    if (navError) {
+      setStatus('warn', '文件已删除，但导航更新失败：' + errorText(navError) + ' 可点「重试导航」再次同步。', {
+        label: '重试导航',
+        run: () => retryRemoveFromNav(slug),
+      });
+    } else {
+      setStatus('ok', '页面已删除，导航已同步。约 1–2 分钟后自动部署生效。', commitAction(navData));
+    }
+    state.busy = false;
+  }
+
+  async function retryRemoveFromNav(slug: string): Promise<void> {
+    await loadList();
+    if (!findNavPage(slug)) {
+      setStatus('ok', '导航中已经没有这一项，无需再处理。');
+      return;
+    }
+    const nav = cloneNav();
+    removePageFromNav(nav, slug);
+    const data = await putNav(nav);
+    await loadList();
+    setStatus('ok', '导航已更新，约 1–2 分钟后自动部署生效。', commitAction(data));
+  }
+
+  function refreshCurrent(): void {
+    if (!state.selected || state.busy) return;
+    if (state.dirty && !window.confirm('重新加载会丢弃未保存的修改，继续吗？')) return;
+    void selectPage(state.selected.slug, { force: true });
+  }
+
+  // ============================================================
+  // 新建页面
+  // ============================================================
+  function formError(id: string, message: string): void {
+    const element = qs<HTMLElement>('#' + id);
+    if (!message) {
+      element.hidden = true;
+      element.textContent = '';
+      return;
+    }
+    element.hidden = false;
+    element.textContent = message;
+  }
+
+  function setButtonBusy(button: HTMLButtonElement, busy: boolean, busyText: string): void {
+    if (busy) {
+      button.dataset.label = button.textContent || '';
+      button.textContent = busyText;
+      button.disabled = true;
+      return;
+    }
+    button.textContent = button.dataset.label || button.textContent || '';
+    button.disabled = false;
+  }
+
+  function updateSlugPrefix(): void {
+    const select = qs<HTMLSelectElement>('#npSection');
+    qs<HTMLElement>('#npPrefix').textContent = select.value ? select.value + '/' : '—';
+  }
+
+  function openPageDialog(): void {
+    if (state.busy) return;
+    if (!state.nav.sections.length) {
+      setStatus('warn', '还没有任何栏目。请先新建栏目，再在栏目里新建页面。', { label: '新建栏目', run: openSectionDialog });
+      return;
+    }
+    formError('pageError', '');
+    const select = qs<HTMLSelectElement>('#npSection');
+    select.replaceChildren();
+    state.nav.sections.forEach((section) => {
+      const option = document.createElement('option');
+      option.value = section.key;
+      option.textContent = section.label + '（' + section.key + '）';
+      select.append(option);
+    });
+    qs<HTMLInputElement>('#npSlug').value = '';
+    qs<HTMLInputElement>('#npTitle').value = '';
+    qs<HTMLInputElement>('#npShort').value = '';
+    qs<HTMLInputElement>('#npDesc').value = '';
+    updateSlugPrefix();
+    const dialog = qs<HTMLDialogElement>('#pageDialog');
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+    window.setTimeout(() => qs<HTMLInputElement>('#npSlug').focus(), 40);
+  }
+
+  function closeDialog(id: string): void {
+    const dialog = qs<HTMLDialogElement>('#' + id);
+    if (dialog.open) dialog.close();
+  }
+
+  function yamlScalar(value: string): string {
+    const text = String(value === null || value === undefined ? '' : value)
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return '""';
+    if (/^[\w\u4e00-\u9fa5][\w\u4e00-\u9fa5 .,，。、/()（）\-–—+]*$/.test(text)) return text;
+    return JSON.stringify(text);
+  }
+
+  function buildContent(options: { title: string; tag: string; description: string; segments: number; bodyTitle?: string }): string {
+    const layout = '../'.repeat(options.segments + 1) + 'layouts/WikiLayout.astro';
+    const front = [
+      '---',
+      'layout: ' + layout,
+      'title: ' + yamlScalar(options.title),
+      'tag: ' + yamlScalar(options.tag),
+      'description: ' + yamlScalar(options.description),
+      '---',
+      '',
+    ].join('\n');
+    const heading = options.bodyTitle || options.title;
+    const body = [
+      '# ' + heading,
+      '',
+      '> 这里是「' + heading + '」的正文占位，把这一段替换成正式内容后保存即可。',
+      '',
+      '## 这一节讲什么',
+      '',
+      '- 要点一',
+      '- 要点二',
+      '',
+      '需要引用其它页面时用相对链接，例如 [返回 Wiki](/wiki/)。',
+      '',
+    ].join('\n');
+    return front + '\n' + body;
+  }
+
+  async function createPage(): Promise<void> {
+    if (qs<HTMLButtonElement>('#pageCreate').disabled || state.busy) return;
+    const sectionKey = qs<HTMLSelectElement>('#npSection').value;
+    const slug = qs<HTMLInputElement>('#npSlug').value.trim();
+    const title = qs<HTMLInputElement>('#npTitle').value.trim();
+    const short = qs<HTMLInputElement>('#npShort').value.trim();
+    const description = qs<HTMLInputElement>('#npDesc').value.trim();
+
+    if (!sectionKey) {
+      formError('pageError', '请选择所属栏目。');
+      return;
+    }
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+      formError('pageError', 'slug 只能用小写字母、数字和连字符，且必须以字母或数字开头。');
+      qs<HTMLInputElement>('#npSlug').focus();
+      return;
+    }
+    if (!title) {
+      formError('pageError', '请填写标题。');
+      qs<HTMLInputElement>('#npTitle').focus();
+      return;
+    }
+    const fullSlug = sectionKey + '/' + slug;
+    const path = fullSlug + '.md';
+    const duplicateNav = state.nav.sections.some((section) => section.pages.some((page) => page.slug === fullSlug));
+    if (duplicateNav || state.files.indexOf(path) !== -1) {
+      formError('pageError', '这个 slug 已经存在（' + path + '），请换一个。');
+      return;
+    }
+    const section = state.nav.sections.find((item) => item.key === sectionKey);
+    if (!section) {
+      formError('pageError', '栏目已不存在，请刷新页面后重试。');
+      return;
+    }
+
+    const entry: NavPage = { slug: fullSlug, label: title, short: short || title };
+    const content = buildContent({
+      title: title,
+      tag: section.tag || sectionKey.toUpperCase(),
+      description: description,
+      segments: fullSlug.split('/').length,
+      bodyTitle: title,
+    });
+    const button = qs<HTMLButtonElement>('#pageCreate');
+    setButtonBusy(button, true, '创建中…');
+    formError('pageError', '');
+    let fileData: any = null;
+
+    try {
+      try {
+        fileData = await api('/api/wiki/file', {
+          method: 'PUT',
+          body: JSON.stringify({ path: path, content: content }),
+          timeout: 40000,
+        });
+      } catch (err: any) {
+        if (err.status === 401) return;
+        formError('pageError', '创建文件失败：' + errorText(err));
+        return;
+      }
+
+      try {
+        await loadList();
+        const freshSection = state.nav.sections.find((item) => item.key === sectionKey);
+        if (!freshSection) throw new ApiError('栏目「' + sectionKey + '」已经不存在，页面文件已创建但未加入导航。', 0);
+        if (!freshSection.pages.some((page) => page.slug === fullSlug)) freshSection.pages.push(entry);
+        const navData = await putNav(state.nav);
+        await loadList();
+        closeDialog('pageDialog');
+        await selectPage(fullSlug, { force: true });
+        setStatus('ok', '页面「' + title + '」已创建并加入导航，约 1–2 分钟后自动部署生效。', commitAction(navData) || commitAction(fileData));
+      } catch (err: any) {
+        if (err.status === 401) return;
+        closeDialog('pageDialog');
+        try {
+          await loadList();
+        } catch (refreshErr) {
+          /* 忽略：至少先把文件状态展示出来 */
+        }
+        await selectPage(fullSlug, { force: true });
+        setStatus('warn', '页面文件已创建（' + path + '），但写入导航失败：' + errorText(err), {
+          label: '重试导航',
+          run: () => retryPageNav(sectionKey, entry),
+        });
+      }
+    } finally {
+      setButtonBusy(button, false, '');
+    }
+  }
+
+  async function retryPageNav(sectionKey: string, entry: NavPage): Promise<void> {
+    await loadList();
+    const section = state.nav.sections.find((item) => item.key === sectionKey);
+    if (!section) throw new ApiError('栏目「' + sectionKey + '」已不存在，请刷新目录后手动处理。', 0);
+    if (!section.pages.some((page) => page.slug === entry.slug)) section.pages.push(entry);
+    const data = await putNav(state.nav);
+    await loadList();
+    if (state.selected && state.selected.slug === entry.slug) syncSelectionMeta();
+    setStatus('ok', '导航已更新，页面「' + entry.label + '」已归入「' + section.label + '」，约 1–2 分钟后自动部署生效。', commitAction(data));
+  }
+
+  // ============================================================
+  // 新建栏目
+  // ============================================================
+  function openSectionDialog(): void {
+    if (state.busy) return;
+    formError('sectionError', '');
+    qs<HTMLInputElement>('#nsKey').value = '';
+    qs<HTMLInputElement>('#nsLabel').value = '';
+    qs<HTMLInputElement>('#nsTag').value = '';
+    const dialog = qs<HTMLDialogElement>('#sectionDialog');
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+    window.setTimeout(() => qs<HTMLInputElement>('#nsKey').focus(), 40);
+  }
+
+  async function createSection(): Promise<void> {
+    if (qs<HTMLButtonElement>('#sectionCreate').disabled || state.busy) return;
+    const key = qs<HTMLInputElement>('#nsKey').value.trim().toLowerCase();
+    const label = qs<HTMLInputElement>('#nsLabel').value.trim();
+    const tag = qs<HTMLInputElement>('#nsTag').value.trim() || key.toUpperCase();
+
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(key)) {
+      formError('sectionError', 'key 只能用小写字母、数字和连字符，且必须以字母或数字开头。');
+      qs<HTMLInputElement>('#nsKey').focus();
+      return;
+    }
+    if (!label) {
+      formError('sectionError', '请填写栏目显示名。');
+      qs<HTMLInputElement>('#nsLabel').focus();
+      return;
+    }
+    if (state.nav.sections.some((section) => section.key === key)) {
+      formError('sectionError', '栏目 key「' + key + '」已经存在，请换一个。');
+      return;
+    }
+
+    const path = key + '/index.md';
+    const fileExists = state.files.indexOf(path) !== -1;
+    const content = buildContent({ title: label, tag: tag, description: '', segments: 2, bodyTitle: label });
+    const button = qs<HTMLButtonElement>('#sectionCreate');
+    setButtonBusy(button, true, '创建中…');
+    formError('sectionError', '');
+    let navData: any = null;
+
+    try {
+      const nav = cloneNav();
+      nav.sections.push({ key: key, label: label, tag: tag, pages: [{ slug: key + '/index', label: label, short: label }] });
+      try {
+        navData = await putNav(nav);
+      } catch (err: any) {
+        if (err.status === 401) return;
+        formError('sectionError', '写入导航失败：' + errorText(err));
+        return;
+      }
+
+      try {
+        if (!fileExists) {
+          await api('/api/wiki/file', {
+            method: 'PUT',
+            body: JSON.stringify({ path: path, content: content }),
+            timeout: 40000,
+          });
+        }
+        await loadList();
+        closeDialog('sectionDialog');
+        await selectPage(key + '/index', { force: true });
+        setStatus(
+          'ok',
+          '栏目「' + label + '」已创建，首页文件 ' + path + (fileExists ? ' 已沿用现有文件' : ' 已生成') + '。约 1–2 分钟后自动部署生效。',
+          commitAction(navData)
+        );
+      } catch (err: any) {
+        if (err.status === 401) return;
+        closeDialog('sectionDialog');
+        try {
+          await loadList();
+        } catch (refreshErr) {
+          /* 忽略：至少展示当前导航状态 */
+        }
+        setStatus('warn', '栏目「' + label + '」已写入导航，但首页文件创建失败：' + errorText(err), {
+          label: '重试创建首页',
+          run: () => retrySectionIndex(key, label, tag),
+        });
+      }
+    } finally {
+      setButtonBusy(button, false, '');
+    }
+  }
+
+  async function retrySectionIndex(key: string, label: string, tag: string): Promise<void> {
+    const path = key + '/index.md';
+    let exists = false;
+    try {
+      await api('/api/wiki/file?path=' + encodeURIComponent(path));
+      exists = true;
+    } catch (err: any) {
+      if (err.status !== 404) throw err;
+    }
+    if (!exists) {
+      const content = buildContent({ title: label, tag: tag, description: '', segments: 2, bodyTitle: label });
+      await api('/api/wiki/file', {
+        method: 'PUT',
+        body: JSON.stringify({ path: path, content: content }),
+        timeout: 40000,
+      });
+    }
+    await loadList();
+    await selectPage(key + '/index', { force: true });
+    setStatus('ok', '首页文件 ' + path + ' 已就绪，约 1–2 分钟后自动部署生效。');
+  }
+
+  // ============================================================
+  // 图片上传
+  // ============================================================
+  function insertAtCursor(text: string): void {
+    const start = typeof mdInput.selectionStart === 'number' ? mdInput.selectionStart : mdInput.value.length;
+    const end = typeof mdInput.selectionEnd === 'number' ? mdInput.selectionEnd : start;
+    const before = mdInput.value.slice(0, start);
+    const after = mdInput.value.slice(end);
+    const prefix = before && before.slice(-1) !== '\n' ? '\n' : '';
+    const suffix = after && after.charAt(0) !== '\n' ? '\n' : '';
+    const insertion = prefix + text + suffix;
+    mdInput.value = before + insertion + after;
+    const caret = start + insertion.length;
+    mdInput.focus();
+    mdInput.setSelectionRange(caret, caret);
+    renderPreview();
+    updateDirty();
+  }
+
+  async function uploadImage(file: File): Promise<void> {
+    if (!state.selected || mdInput.disabled) {
+      setStatus('error', '页面还没加载完成，请稍后再上传图片。');
+      return;
+    }
+    if (state.busy) return;
+    if (IMAGE_TYPES.indexOf(file.type) === -1) {
+      setStatus('error', '只支持 PNG / JPEG / WebP / GIF 图片（当前类型：' + (file.type || '未知') + '）。');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setStatus('error', '图片超过 4MB（当前 ' + (file.size / 1024 / 1024).toFixed(1) + 'MB），请压缩后再传。');
+      return;
+    }
+    state.busy = true;
+    uploadBtn.disabled = true;
+    setStatus('busy', '正在上传图片 ' + (file.name || '') + '…');
+    try {
+      const data = await api('/api/wiki/image', {
+        method: 'POST',
+        body: file,
+        raw: true,
+        headers: { 'Content-Type': file.type },
+        timeout: 60000,
+      });
+      const url = data && typeof data.url === 'string' ? data.url : '';
+      if (!url) throw new ApiError('上传成功，但服务端没有返回图片地址。', 0);
+      insertAtCursor('![](' + url + ')');
+      setStatus('ok', '图片已上传，并插入到光标位置：' + url + '（约 1–2 分钟后线上可用）');
+    } catch (err: any) {
+      if (err.status === 401) return;
+      if (err.status === 413) {
+        setStatus('error', '图片超过 4MB，服务端拒绝了这次上传。');
+      } else if (err.status === 415) {
+        setStatus('error', '服务端不支持这种图片类型，请用 PNG / JPEG / WebP / GIF。');
+      } else {
+        setStatus('error', '图片上传失败：' + errorText(err), { label: '重试上传', run: () => uploadImage(file) });
+      }
+    } finally {
+      state.busy = false;
+      uploadBtn.disabled = false;
+    }
+  }
+
+  // ============================================================
+  // Markdown 预览（零依赖、先转义再渲染）
+  // ============================================================
+  /* MARKDOWN_RENDERER_START */
+  function escapeHtml(value: string): string {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function safeUrl(raw: string): string {
+    const url = String(raw || '').trim();
+    if (!url) return '';
+    if (/[\u0000-\u001f\u007f]/.test(url)) return '';
+    const scheme = url.match(/^([a-z][a-z0-9+.-]*):/i);
+    if (scheme && !/^(https?|mailto)$/i.test(scheme[1])) return '';
+    return url;
+  }
+
+  function emphasise(text: string): string {
+    let out = text.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    out = out.replace(/__([^_\n]+)__/g, '<strong>$1</strong>');
+    out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+    out = out.replace(/(^|[^_\w])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+    return out;
+  }
+
+  function renderInline(raw: string): string {
+    const tokens: string[] = [];
+    const stash = (html: string): string => {
+      const key = '\u0000' + tokens.length + '\u0000';
+      tokens.push(html);
+      return key;
+    };
+    let text = escapeHtml(raw);
+
+    text = text.replace(/`([^`\n]+)`/g, (match, code) => stash('<code>' + code + '</code>'));
+
+    text = text.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (match, alt, url) => {
+      const safe = safeUrl(url);
+      if (!safe) return match;
+      return stash('<img src="' + safe + '" alt="' + alt + '" loading="lazy" />');
+    });
+
+    text = text.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (match, label, url) => {
+      const safe = safeUrl(url);
+      if (!safe) return match;
+      const external = /^https?:\/\//i.test(safe);
+      return stash(
+        '<a href="' + safe + '"' + (external ? ' target="_blank" rel="noopener noreferrer"' : '') + '>' + emphasise(label) + '</a>'
+      );
+    });
+
+    text = emphasise(text);
+    return text.replace(/\u0000(\d+)\u0000/g, (match, index) => tokens[Number(index)] || '');
+  }
+
+  function splitTableRow(line: string): string[] {
+    let value = String(line).trim();
+    if (value.charAt(0) === '|') value = value.slice(1);
+    if (value.charAt(value.length - 1) === '|') value = value.slice(0, -1);
+    return value.split('|').map((cell) => cell.trim());
+  }
+
+  function isTableSeparator(line: string): boolean {
+    if (String(line).indexOf('|') === -1) return false;
+    const cells = splitTableRow(line);
+    if (!cells.length) return false;
+    return cells.every((cell) => /^:?-{2,}:?$/.test(cell.trim()));
+  }
+
+  function alignAttr(align: string): string {
+    return align ? ' style="text-align:' + align + '"' : '';
+  }
+
+  function startsBlock(line: string): boolean {
+    const text = String(line).trim();
+    if (!text) return true;
+    if (/^(`{3,}|~{3,})/.test(text)) return true;
+    if (/^#{1,6}\s+/.test(text)) return true;
+    if (/^>\s?/.test(text)) return true;
+    if (/^[-+*]\s+/.test(text)) return true;
+    if (/^\d{1,3}[.)]\s+/.test(text)) return true;
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(text)) return true;
+    return false;
+  }
+
+  function renderBlocks(lines: string[]): string {
+    const out: string[] = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line.trim()) {
+        i += 1;
+        continue;
+      }
+
+      const fence = line.match(/^\s*(`{3,}|~{3,})\s*([A-Za-z0-9_+-]*)\s*$/);
+      if (fence) {
+        const marker = fence[1].charAt(0);
+        const min = fence[1].length;
+        const lang = fence[2] || '';
+        const buffer: string[] = [];
+        i += 1;
+        while (i < lines.length) {
+          const trimmed = lines[i].trim();
+          if (trimmed.length >= min && /^(`+|~+)$/.test(trimmed) && trimmed.charAt(0) === marker) break;
+          buffer.push(lines[i]);
+          i += 1;
+        }
+        if (i < lines.length) i += 1;
+        const code = escapeHtml(buffer.join('\n'));
+        out.push('<pre><code' + (lang ? ' class="language-' + lang + '"' : '') + '>' + code + '</code></pre>');
+        continue;
+      }
+
+      const heading = line.match(/^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/);
+      if (heading) {
+        const level = heading[1].length;
+        out.push('<h' + level + '>' + renderInline(heading[2]) + '</h' + level + '>');
+        i += 1;
+        continue;
+      }
+
+      if (/^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+        out.push('<hr />');
+        i += 1;
+        continue;
+      }
+
+      if (/^\s{0,3}>/.test(line)) {
+        const buffer: string[] = [];
+        while (i < lines.length && /^\s{0,3}>/.test(lines[i])) {
+          buffer.push(lines[i].replace(/^\s{0,3}>\s?/, ''));
+          i += 1;
+        }
+        out.push('<blockquote>' + renderBlocks(buffer) + '</blockquote>');
+        continue;
+      }
+
+      if (line.indexOf('|') !== -1 && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+        const headers = splitTableRow(line);
+        const aligns = splitTableRow(lines[i + 1]).map((cell) => {
+          const value = cell.trim();
+          if (/^:-+:$/.test(value)) return 'center';
+          if (/^:-+$/.test(value)) return 'left';
+          if (/^-+:$/.test(value)) return 'right';
+          return '';
+        });
+        i += 2;
+        const rows: string[][] = [];
+        while (i < lines.length && lines[i].trim() && lines[i].indexOf('|') !== -1) {
+          rows.push(splitTableRow(lines[i]));
+          i += 1;
+        }
+        let html = '<div class="we-table-wrap"><table><thead><tr>';
+        headers.forEach((cell, index) => {
+          html += '<th' + alignAttr(aligns[index]) + '>' + renderInline(cell) + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+        rows.forEach((row) => {
+          html += '<tr>';
+          for (let column = 0; column < headers.length; column += 1) {
+            html += '<td' + alignAttr(aligns[column]) + '>' + renderInline(row[column] || '') + '</td>';
+          }
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        out.push(html);
+        continue;
+      }
+
+      const unordered = line.match(/^\s{0,3}[-+*]\s+(.*)$/);
+      if (unordered) {
+        const items: string[] = [];
+        while (i < lines.length) {
+          const item = lines[i].match(/^\s{0,3}[-+*]\s+(.*)$/);
+          if (!item) break;
+          items.push('<li>' + renderInline(item[1]) + '</li>');
+          i += 1;
+        }
+        out.push('<ul>' + items.join('') + '</ul>');
+        continue;
+      }
+
+      const ordered = line.match(/^\s{0,3}(\d{1,3})[.)]\s+(.*)$/);
+      if (ordered) {
+        const start = Number(ordered[1]);
+        const items: string[] = [];
+        while (i < lines.length) {
+          const item = lines[i].match(/^\s{0,3}(\d{1,3})[.)]\s+(.*)$/);
+          if (!item) break;
+          items.push('<li>' + renderInline(item[2]) + '</li>');
+          i += 1;
+        }
+        out.push('<ol' + (start !== 1 ? ' start="' + start + '"' : '') + '>' + items.join('') + '</ol>');
+        continue;
+      }
+
+      const paragraph: string[] = [line.trim()];
+      i += 1;
+      while (i < lines.length) {
+        const next = lines[i];
+        if (!next.trim()) break;
+        if (startsBlock(next)) break;
+        if (next.indexOf('|') !== -1 && i + 1 < lines.length && isTableSeparator(lines[i + 1])) break;
+        paragraph.push(next.trim());
+        i += 1;
+      }
+      out.push('<p>' + renderInline(paragraph.join(' ')) + '</p>');
+    }
+    return out.join('\n');
+  }
+
+  function renderMarkdown(source: string): string {
+    const text = String(source === null || source === undefined ? '' : source).replace(/\r\n?/g, '\n');
+    return renderBlocks(text.split('\n'));
+  }
+  /* MARKDOWN_RENDERER_END */
+
+  function stripFrontmatter(source: string): { has: boolean; body: string } {
+    const text = source.replace(/\r\n?/g, '\n');
+    const match = text.match(/^---\n([\s\S]*?)\n---[ \t]*(?:\n|$)/);
+    if (!match) return { has: false, body: text };
+    return { has: true, body: text.slice(match[0].length) };
+  }
+
+  let previewTimer = 0;
+  function renderPreview(): void {
+    const source = mdInput.value;
+    const parsed = stripFrontmatter(source);
+    const body = parsed.body.trim();
+    let html = parsed.has ? '<p class="we-preview-note">文件开头的 frontmatter 已在预览中隐藏。</p>' : '';
+    html += body ? renderMarkdown(parsed.body) : '<p class="we-preview-empty">（还没有正文，保存后线上会显示空页面）</p>';
+    previewEl.innerHTML = html;
+  }
+
+  function schedulePreview(): void {
+    if (previewTimer) window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(() => {
+      previewTimer = 0;
+      renderPreview();
+    }, 120);
+  }
+
+  // ============================================================
+  // 启动
+  // ============================================================
+  async function bootEditor(): Promise<void> {
+    setStatus('busy', '正在加载 Wiki 目录…');
+    try {
+      await loadList();
+    } catch (err: any) {
+      if (err.status === 401) return;
+      setStatus('error', '加载 Wiki 目录失败：' + errorText(err), { label: '重新加载', run: bootEditor });
+      return;
+    }
+    const first = firstNavPage();
+    if (first) {
+      await selectPage(first.slug);
+    } else {
+      showWelcome();
+      setStatus('ok', '已连接。导航还是空的，先新建栏目或页面。');
+    }
+  }
+
+  async function init(): Promise<void> {
+    state.token = readToken();
+    if (!state.token) {
+      showLoginGate('你还没有登录，登录后即可编辑 Wiki。');
+      return;
+    }
+    let me: any;
+    try {
+      me = await api('/api/me');
+    } catch (err: any) {
+      if (err.status === 401) return;
+      if (err.status === 403) {
+        clearToken();
+        showLoginGate('登录状态已失效，请重新登录。');
+        return;
+      }
+      showGateError('读取账号信息失败：' + errorText(err));
+      return;
+    }
+    state.me = me;
+    const role = me && me.role ? String(me.role) : 'user';
+    if (role !== 'admin' && role !== 'owner') {
+      showDenied(role);
+      return;
+    }
+    loadingPane.hidden = true;
+    app.hidden = false;
+    await bootEditor();
+  }
+
+  // ---------- 事件绑定 ----------
+  qs<HTMLButtonElement>('#newPageBtn').addEventListener('click', openPageDialog);
+  qs<HTMLButtonElement>('#welcomeNewPage').addEventListener('click', openPageDialog);
+  qs<HTMLButtonElement>('#newSectionBtn').addEventListener('click', openSectionDialog);
+  qs<HTMLButtonElement>('#pageCancel').addEventListener('click', () => closeDialog('pageDialog'));
+  qs<HTMLButtonElement>('#sectionCancel').addEventListener('click', () => closeDialog('sectionDialog'));
+  qs<HTMLFormElement>('#pageForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    void createPage();
+  });
+  qs<HTMLFormElement>('#sectionForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    void createSection();
+  });
+  qs<HTMLSelectElement>('#npSection').addEventListener('change', updateSlugPrefix);
+  saveBtn.addEventListener('click', () => {
+    void saveFile();
+  });
+  saveMetaBtn.addEventListener('click', () => {
+    void saveMeta();
+  });
+  deleteBtn.addEventListener('click', () => {
+    void deleteFile();
+  });
+  refreshBtn.addEventListener('click', refreshCurrent);
+  uploadBtn.addEventListener('click', () => {
+    if (!state.selected) {
+      setStatus('error', '请先选择一个页面，再上传图片。');
+      return;
+    }
+    imageInput.click();
+  });
+  imageInput.addEventListener('change', () => {
+    const file = imageInput.files && imageInput.files[0];
+    imageInput.value = '';
+    if (file) void uploadImage(file);
+  });
+  mdInput.addEventListener('input', () => {
+    schedulePreview();
+    updateDirty();
+  });
+  window.addEventListener('beforeunload', (event) => {
+    if (!state.dirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
+
+  void init().catch((err: any) => {
+    showGateError('初始化失败：' + errorText(err));
+  });
+</script>
+</BaseLayout>

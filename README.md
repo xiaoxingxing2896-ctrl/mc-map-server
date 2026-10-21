@@ -36,6 +36,36 @@
 | `/thanks/` | 特别鸣谢 | 按姓名首字母排序，不分贡献 |
 | `/account/` | 账号 | 登录 / 注册 / 邮箱验证 / 重置，与地图共用登录态 |
 
+## Wiki 站内编辑（管理员，不用碰仓库）
+
+管理员与 owner 登录站点后访问 `/wiki/edit/`（账号页也有入口），可以：
+
+- 新建 / 删除 / 修改 Wiki 页面（Markdown + 实时预览）；
+- 新建栏目（写进 `web/src/data/wiki.json`，左侧目录自动出现）；
+- 上传图片，统一存放 `web/public/wiki/img/`，以 `/wiki/img/…` 引用——**和地图瓦片（/tiles/）完全分开**；
+- 保存即提交到 GitHub `main`，由 Actions 重新构建部署，约 1–2 分钟生效。
+
+内容始终是仓库里的 Markdown，可随时用 Git 回滚或导出。
+
+### 一次性配置
+
+1. 建一个 **fine-grained PAT**：GitHub → Settings → Developer settings → Fine-grained tokens → 只授权 `mc-map-server` 仓库 → Repository permissions → **Contents: Read and write**。
+2. 写进 Worker：
+
+```bash
+cd worker
+npx wrangler secret put GITHUB_TOKEN     # 粘贴上一步的 token
+# 可选，默认就是本仓库
+# npx wrangler secret put GITHUB_REPO    # xiaoxingxing2896-ctrl/mc-map-server
+# npx wrangler secret put GITHUB_BRANCH  # main
+npx wrangler deploy
+```
+
+3. 用 admin / owner 账号打开 `/wiki/edit/` 试保存一次。
+
+> 未配置 `GITHUB_TOKEN` 时编辑器会提示「未配置 GITHUB_TOKEN」（HTTP 503），其它站点功能不受影响。
+> token 只存在 Worker secret 里，前端拿不到；接口只允许改 `web/src/pages/wiki/**/*.md`、`web/src/data/wiki.json` 和 `web/public/wiki/img/*`，路径穿越会被拒绝。
+
 ## 项目结构
 
 ```

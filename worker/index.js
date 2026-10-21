@@ -18,6 +18,11 @@ export default {
         adminPassword: env.ADMIN_PASSWORD || null,
         mail: { apiKey: env.RESEND_API_KEY || '', from: env.MAIL_FROM || 'noreply@worldeternal.xyz' },
         turnstile: env.TURNSTILE_SECRET_KEY || '',
+        github: {
+          token: env.GITHUB_TOKEN || '',
+          repo: env.GITHUB_REPO || 'xiaoxingxing2896-ctrl/mc-map-server',
+          branch: env.GITHUB_BRANCH || 'main',
+        },
       });
     }
     return cached(request);

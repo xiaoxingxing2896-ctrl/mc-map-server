@@ -71,6 +71,7 @@ const emailParam = Astro.url.searchParams.get('email') || '';
         <div class="profile-actions">
           <a class="action" href="/">返回地图 <span aria-hidden="true">↗</span></a>
           <a class="ghost" id="manageLink" href="/upload/" hidden>上传瓦片</a>
+          <a class="ghost" id="wikiLink" href="/wiki/edit/" hidden>编辑 Wiki</a>
           <button type="button" class="ghost" id="logoutBtn">退出登录</button>
         </div>
         <p class="form-error" id="profileError" role="alert" hidden></p>
@@ -318,6 +319,8 @@ const emailParam = Astro.url.searchParams.get('email') || '';
       el.innerHTML = '<span class="profile-emoji">' + (me.role === 'owner' ? '👑' : me.role === 'admin' ? '🛡️' : '👤') + '</span><strong>' + esc(me.username) + '</strong><span class="profile-role">' + esc(me.role) + '</span>';
       const manage = document.getElementById('manageLink') as HTMLElement | null;
       if (manage) manage.hidden = !(me.role === 'admin' || me.role === 'owner');
+      const wikiLink = document.getElementById('wikiLink') as HTMLElement | null;
+      if (wikiLink) wikiLink.hidden = !(me.role === 'admin' || me.role === 'owner');
       show('profile');
       return true;
     } catch {

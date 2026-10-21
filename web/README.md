@@ -51,6 +51,25 @@ wiki/reference/                  术语表 / 装备与附魔 / 变更日志 / �
 - `nether-map-data.js`：线路、站点与坐标，**改数据即改图**；
 - 公开页面隐藏编辑入口，维护时访问 `/transit/?edit=1`；编辑结果存在浏览器 localStorage，需要长期保存请导出 JSON 后覆盖数据文件。
 
+## Wiki 编辑器（/wiki/edit/）
+
+给 admin / owner 用的站内 CMS，不需要本地仓库和 Git 命令：
+
+| 能力 | 落点 |
+|---|---|
+| 编辑页面正文 | `web/src/pages/wiki/<slug>.md` |
+| 新建页面 / 删除页面 | 同上，并同步更新目录 |
+| 新建栏目 | `web/src/data/wiki.json` 的 `sections` |
+| 改显示名（左侧菜单文字） | `web/src/data/wiki.json` 的 `label` / `short` |
+| 上传图片 | `web/public/wiki/img/`，引用路径 `/wiki/img/<name>` |
+
+- 保存 = 调 Worker 的 `/api/wiki/*`，由 Worker 用 `GITHUB_TOKEN` 提交到 GitHub，触发 Actions 重建，约 1–2 分钟上线。
+- 图片目录与地图瓦片（`/tiles/`、R2）完全隔离，不会被瓦片同步任务碰到。
+- 更新已有文件必须带 sha（冲突返回 409，界面提示刷新），新建不带 sha。
+- 未配置 token 时接口返回 503，页面给出明确提示。
+
+接口契约见仓库根 README「Wiki 站内编辑」一节；后端在 `worker/wiki.js`（GitHub 客户端 `worker/github.js`）。
+
 ## 本地运行
 
 ```bash
