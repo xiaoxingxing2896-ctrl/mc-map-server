@@ -45,4 +45,5 @@ jobs:
             endpoint="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com" \
             --non-interactive
           # App uploads override repository tiles; never remove them during Git sync.
-          rclone sync tiles r2:mc-map-tiles --exclude '/_uploads/**' --fast-list --progress
+          # photos/** 是玩家上传的历程图片（/api/posts/:id/photos → R2 photos/），同样不能被 Git 同步删除。
+          rclone sync tiles r2:mc-map-tiles --exclude '/_uploads/**' --exclude '/photos/**' --fast-list --progress
