@@ -29,7 +29,7 @@
 |---|---|---|
 | `/` | 地图 | 直接嵌入 `public/index.html`，保留全部地图交互与 API 路径 |
 | `/about/` | 服务器介绍 | 横幅 + 卡片，内容来自 `web/src/data/site.json` |
-| `/history/` | 历程记录 | 时间轴；图片放 `web/public/history/`，命名 `YYYY-MM-DD_标题_作者.webp` |
+| `/history/` | 历程记录 | **博客式相册**：任意登录玩家可发图文，图片存 R2 `photos/`，见下文「历程记录」 |
 | `/transit/` | 交通线路 | 下界交通示意图，数据驱动 SVG，可点站看详情；`?edit=1` 才显示编辑入口 |
 | `/upload/` | 上传瓦片 | 仅 admin / owner：列瓦片、上传 1024×1024 PNG、删除（DELETE /api/tiles） |
 | `/wiki/` | 服务器 Wiki | 新手线 / 设施手册 / 地图 / 参考，Markdown + WikiLayout 目录树 |
@@ -65,6 +65,27 @@ npx wrangler deploy
 
 > 未配置 `GITHUB_TOKEN` 时编辑器会提示「未配置 GITHUB_TOKEN」（HTTP 503），其它站点功能不受影响。
 > token 只存在 Worker secret 里，前端拿不到；接口只允许改 `web/src/pages/wiki/**/*.md`、`web/src/data/wiki.json` 和 `web/public/wiki/img/*`，路径穿越会被拒绝。
+
+## 历程记录（博客式相册）
+
+`/history/` 是**所有玩家都能写**的图文相册，不再依赖构建期的图片命名约定：
+
+- 任何已登录账号都能发表：标题（≤ 80 字）+ 正文（≤ 5000 字）+ 最多 12 张图片；
+- 每个帖子只有作者本人和 admin / owner 能编辑、删除；图片随帖子一起删除；
+- 图片只接受 PNG / JPEG / WebP，单张 ≤ 10 MB，服务端按文件头识别真实格式（不信任 Content-Type），并记录宽高用于排版；
+- 存储：正文在数据库（D1 / sqlite3 的 `posts`、`post_photos` 表），图片在 R2 的 `photos/<postId>/…`（Express 版在 `config.photosDir`，默认 `photos/`），对外地址 `/photos/<key>`；
+- **与瓦片完全隔离**：瓦片在 R2 根目录与 `_uploads/`、`nether/`、`end/` 前缀下，图片在 `photos/` 前缀下，互不覆盖、互不列出。
+
+| 接口 | 方法 | 权限 | 说明 |
+|---|---|---|---|
+| `/api/posts?limit=&offset=` | GET | 公开 | 帖子列表（最新在前，含图片信息） |
+| `/api/posts` | POST | 登录 | 新建帖子 `{title, body}` |
+| `/api/posts/:id` | GET | 公开 | 帖子详情 |
+| `/api/posts/:id` | PUT | 作者 / admin / owner | 修改标题或正文 |
+| `/api/posts/:id` | DELETE | 作者 / admin / owner | 删除帖子及其图片 |
+| `/api/posts/:id/photos?name=` | PUT | 作者 / admin / owner | 上传图片（raw body，`Content-Type: image/png|jpeg|webp`） |
+| `/api/posts/:id/photos?key=` | DELETE | 作者 / admin / owner | 删除单张图片 |
+| `/photos/:key` | GET | 公开 | 图片字节（7 天缓存） |
 
 ## 项目结构
 
@@ -208,13 +229,13 @@ npm run backup     # 复制 mcmap.db 到 backups/，保留最近 7 份
 
 > 如果你完全不想有服务器，可以用本仓库的 `worker/` 目录：**后端已重写为 Cloudflare Workers 运行时（零 npm 依赖）**，
 > 前端（public/）由 Workers 静态资产承载，数据库用 Cloudflare D1（SQLite 方言，表结构不变），瓦片放 R2（URL 与文件名解析不变）。
-> API 路径、响应、错误消息、权限逻辑与原版逐字节一致（本地 32 项回归全部通过）。
+> API 路径、响应、错误消息、权限逻辑与原版逐字节一致（本地 91 项回归全部通过）。
 
 ### 架构
 
 | 原版 | Serverless 版 | 说明 |
 |---|---|---|
-| express 路由 | `worker/app.js` 手写 fetch 路由 | 认证 / 标注 / 瓦片（含管理员上传与删除）等 19 个端点，语义不变 |
+| express 路由 | `worker/app.js` 手写 fetch 路由 | 认证 / 标注 / 瓦片 / Wiki / 历程记录等 34 个端点，语义不变 |
 | sqlite3 | Cloudflare D1 | 表结构 SQL 原样迁移 |
 | bcryptjs | PBKDF2（新）+ 内联 bcryptjs（旧） | 现有 $2a$ 密码可直接登录；新密码为 pbkdf2 格式 |
 | jsonwebtoken | Web Crypto HS256 手写 | 签名/验证等价 |

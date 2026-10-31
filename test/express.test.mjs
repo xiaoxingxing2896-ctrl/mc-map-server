@@ -10,7 +10,7 @@ import { createDbFromSqlite } from '../worker/dev-shims.js';
 import { png } from './png-fixture.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'mc-map-test-'));
-Object.assign(process.env, { DB_PATH: ':memory:', TILES_DIR: dir, JWT_SECRET: secret, ADMIN_PASSWORD: 'TestPass123', TRUST_PROXY: '1' });
+Object.assign(process.env, { DB_PATH: ':memory:', TILES_DIR: dir, PHOTOS_DIR: join(dir, 'photos'), JWT_SECRET: secret, ADMIN_PASSWORD: 'TestPass123', TRUST_PROXY: '1' });
 for (const f of tileFiles) writeFileSync(join(dir, f), Buffer.from([137, 80, 78, 71]));
 const require = createRequire(import.meta.url);
 const config = require('../config');
@@ -31,15 +31,19 @@ after(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 async function req(method, path, body, token, extra = {}) {
+  const raw = body instanceof Uint8Array || Buffer.isBuffer(body);
   const r = await fetch(base + path, {
     method, headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `10.0.${Math.floor(++seq / 250)}.${seq % 250 + 1}`, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : (raw ? body : JSON.stringify(body)),
   });
   const text = await r.text(); let data; try { data = JSON.parse(text); } catch { data = text; }
   return { status: r.status, headers: r.headers, data };
 }
 async function fixture() {
-  await db.run('DELETE FROM markers'); await db.run('DELETE FROM users'); await seed(db);
+  await db.run('DELETE FROM markers'); await db.run('DELETE FROM users');
+  await db.run('DELETE FROM post_photos'); await db.run('DELETE FROM posts');
+  rmSync(join(dir, 'photos'), { recursive: true, force: true });
+  await seed(db);
   return { req, db };
 }
 apiContract(test, fixture);

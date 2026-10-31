@@ -69,6 +69,18 @@ app.use('/api/users', require('./src/routes/users'));
 app.use('/api/tiles', require('./src/routes/tiles'));
 app.use('/api/markers', require('./src/routes/markers'));
 
+// 历程记录（博客式相册）：/api/posts/* 与 /photos/*（与 Worker 版端点一一对齐）
+const postsRouter = require('./src/routes/posts');
+app.use('/api/posts', postsRouter);
+app.get(/^\/photos\/(.+)$/, async (req, res, next) => {
+  try {
+    const { servePhoto } = await import('./worker/photos.js');
+    const response = await servePhoto({ params: { key: req.params[0] } }, postsRouter.ctx);
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+    res.status(response.status).send(Buffer.from(await response.arrayBuffer()));
+  } catch (e) { next(e); }
+});
+
 // 404
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });

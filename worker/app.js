@@ -3,6 +3,7 @@
 import * as R from './routes.js';
 import { uploadTile } from './tile-upload.js';
 import * as W from './wiki.js';
+import * as P from './photos.js';
 import { hashPassword } from './password.js';
 import { b64url } from './util.js';
 
@@ -100,6 +101,26 @@ async function initDatabase(db, adminPassword) {
   try { await db.run("ALTER TABLE markers ADD COLUMN world TEXT DEFAULT 'overworld'"); } catch {}
   // 确保旧标注的 world 正确（避免多维度过滤后"标点丢失"）
   try { await db.run("UPDATE markers SET world = 'overworld' WHERE world IS NULL OR world = ''"); } catch {}
+  // 历程记录（博客式相册）：任意已登录玩家都可以写图文，图片存 R2 的 photos/ 前缀
+  await db.run(`CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      author TEXT NOT NULL,
+      author_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME
+  )`);
+  await db.run(`CREATE TABLE IF NOT EXISTS post_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,
+      key TEXT NOT NULL UNIQUE,
+      name TEXT,
+      width INTEGER DEFAULT 0,
+      height INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  try { await db.run("CREATE INDEX IF NOT EXISTS idx_post_photos_post ON post_photos(post_id)"); } catch {}
   // 无默认管理员：用户只能通过邮箱注册，第一个注册者自动成为 owner（见 register 逻辑）
 }
 
@@ -195,6 +216,24 @@ async function dispatch(request, method, path, ctx) {
   }
   m = path.match(/^\/tiles\/(.+)$/);
   if (m && method === 'GET') return R.serveTile(withParams(request, { key: m[1] }), ctx);
+  // 历程记录（博客式相册）：所有人可读，任意已登录玩家可写图文
+  if (path === '/api/posts' && method === 'GET') return P.listPosts(request, ctx);
+  if (path === '/api/posts' && method === 'POST') return P.createPost(request, ctx);
+  m = path.match(/^\/api\/posts\/(\d+)$/);
+  if (m) {
+    const req = withParams(request, { id: m[1] });
+    if (method === 'GET') return P.getPost(req, ctx);
+    if (method === 'PUT') return P.updatePost(req, ctx);
+    if (method === 'DELETE') return P.deletePost(req, ctx);
+  }
+  m = path.match(/^\/api\/posts\/(\d+)\/photos$/);
+  if (m) {
+    const req = withParams(request, { id: m[1] });
+    if (method === 'PUT') return P.uploadPhoto(req, ctx);
+    if (method === 'DELETE') return P.deletePhoto(req, ctx);
+  }
+  m = path.match(/^\/photos\/(.+)$/);
+  if (m && method === 'GET') return P.servePhoto(withParams(request, { key: m[1] }), ctx);
   // Wiki 编辑器（GitHub 仓库读写，仅 admin/owner）
   if (path === '/api/wiki/list' && method === 'GET') return W.listWiki(request, ctx);
   if (path === '/api/wiki/file' && method === 'GET') return W.getWikiFile(request, ctx);

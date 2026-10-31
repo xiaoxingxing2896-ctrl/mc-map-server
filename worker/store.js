@@ -68,5 +68,19 @@ export function createBucketFromR2(bucket) {
         async deleteTile(key) {
             return bucket.delete(key);
         },
+        // ---------- 历程图片（photos/ 前缀，与瓦片互不干扰） ----------
+        async putPhoto(key, bytes, contentType) {
+            return bucket.put('photos/' + key, bytes, { httpMetadata: { contentType: contentType || 'application/octet-stream' } });
+        },
+        async getPhoto(key) {
+            const obj = await bucket.get('photos/' + key);
+            if (!obj) return null;
+            const buf = await obj.arrayBuffer();
+            const type = (obj.httpMetadata && obj.httpMetadata.contentType) || 'application/octet-stream';
+            return { buf, type };
+        },
+        async deletePhoto(key) {
+            return bucket.delete('photos/' + key);
+        },
     };
 }

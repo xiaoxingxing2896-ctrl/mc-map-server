@@ -1,21 +1,625 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getHistory } from '../data/history';
-const records = getHistory();
 ---
 <BaseLayout title="历程记录">
-  <div class="page-heading"><span class="section-tag">THE WORLD WE BUILT</span><h1>存档里的每一步。</h1><p>从第一块方块，到下一座生电工程。记录建设，记录相遇。</p></div>
-  <div class="content">{records.length ? <div class="timeline">{records.map(item => <article class="timeline-item"><div class="card">{item.image && <button class="history-photo" data-image={item.image} data-title={item.title} data-date={item.date} data-authors={item.authors.join('、')} aria-label={`放大查看：${item.title}`}><img src={item.image} alt={item.title} loading="lazy" /></button>}<div class="history-info"><time datetime={item.date}>{item.date}</time><h2>{item.title}</h2>{item.description && <p>{item.description}</p>}<div class="authors" aria-label="参与者">{item.authors.map(author => <span>{author}</span>)}</div></div></div></article>)}</div> : <div class="card empty"><div class="empty-symbol">◷</div><h2>故事，正在发生。</h2><p>历程记录整理中，未来在这里重温共同建设的时光。</p><a class="action" href="/">先去世界里看看 ↗</a></div>}</div>
-  <dialog class="lightbox" id="historyLightbox" aria-label="历程图片"><div class="lightbox-controls"><button id="previousImage" aria-label="上一张图片">← 上一张</button><button id="closeImage" autofocus>关闭 ×</button><button id="nextImage" aria-label="下一张图片">下一张 →</button></div><img id="fullImage" alt="" /><p class="lightbox-caption" id="imageCaption"></p></dialog>
-  <script>
-    const dialog = document.getElementById('historyLightbox') as HTMLDialogElement;
-    const cards = [...document.querySelectorAll<HTMLButtonElement>('.history-photo')]; let active = 0;
-    function show(index: number) { active = (index + cards.length) % cards.length; const data = cards[active].dataset; const image = document.getElementById('fullImage') as HTMLImageElement; image.src = data.image!; image.alt = data.title!; document.getElementById('imageCaption')!.textContent = `${data.title} · ${data.date} · ${data.authors}`; }
-    cards.forEach((card,index) => card.addEventListener('click', () => { show(index); dialog.showModal(); }));
-    document.getElementById('closeImage')?.addEventListener('click', () => dialog.close());
-    document.getElementById('previousImage')?.addEventListener('click', () => show(active-1));
-    document.getElementById('nextImage')?.addEventListener('click', () => show(active+1));
-    dialog.addEventListener('keydown', event => { if (event.key === 'ArrowLeft') show(active-1); if (event.key === 'ArrowRight') show(active+1); });
-    dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+  <div class="page-heading">
+    <span class="section-tag">DIARIES &amp; ALBUMS</span>
+    <h1>存档里的每一步。</h1>
+    <p>这里是服务器的相册与手记：一栋建筑、一次开荒、一个深夜的工程，都可以写下来、贴上图。凡是登录的玩家都能发表，图片与文字同属一篇记录。</p>
+  </div>
+
+  <div class="content album-page">
+    <section class="card gate" id="albumGate" hidden>
+      <span class="section-tag">SIGN IN TO WRITE</span>
+      <h2>先登录，再写下这一页</h2>
+      <p class="gate-text" id="gateText">历程记录对所有人开放阅读；发表图文需要登录服务器账号。登录后会回到这个页面。</p>
+      <p class="gate-actions"><a class="action" href="/account/?next=/history/">前往账号入口登录 <span aria-hidden="true">↗</span></a></p>
+    </section>
+
+    <section class="card composer" id="composer" hidden>
+      <span class="section-tag">NEW ENTRY</span>
+      <h2>写一篇</h2>
+      <form id="postForm" novalidate>
+        <label class="field">
+          <span class="field-label">标题</span>
+          <input id="postTitle" type="text" maxlength="80" placeholder="比如：主城的钟楼终于敲响了" autocomplete="off" required />
+        </label>
+        <label class="field">
+          <span class="field-label">正文</span>
+          <textarea id="postBody" rows="5" maxlength="5000" placeholder="这段时间在服务器里做了什么？遇到了什么、改了什么、谁一起干的。"></textarea>
+        </label>
+        <div class="field">
+          <span class="field-label">图片</span>
+          <label class="drop" id="photoDrop">
+            <input id="postFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
+            <span class="drop-icon" aria-hidden="true">＋</span>
+            <span class="drop-text">选择图片，或把图片拖到这里<br /><small>PNG / JPEG / WebP，单张 ≤ 10 MB，每篇最多 12 张</small></span>
+          </label>
+          <ul class="preview" id="photoPreview"></ul>
+        </div>
+        <p class="form-error" id="formError" role="alert"></p>
+        <div class="composer-actions">
+          <button class="action" type="submit" id="submitBtn">发布</button>
+          <span class="composer-hint" id="composerHint">发布后约 1 秒即可在下面看到。</span>
+        </div>
+      </form>
+    </section>
+
+    <div class="album-bar">
+      <span class="album-count" id="albumCount">正在读取…</span>
+      <button type="button" class="ghost" id="reloadBtn">刷新</button>
+    </div>
+
+    <div class="post-feed" id="feed" aria-live="polite"></div>
+
+    <div class="card album-empty" id="albumEmpty" hidden>
+      <div class="empty-symbol">◷</div>
+      <h2>还没有人写第一篇。</h2>
+      <p>建设、旅行、失败的红石——随便写点什么，这里就是开头。</p>
+    </div>
+
+    <div class="album-more"><button type="button" class="ghost" id="moreBtn" hidden>加载更多</button></div>
+  </div>
+
+  <dialog class="lightbox" id="photoLightbox" aria-label="历程图片">
+    <div class="lightbox-controls">
+      <button id="previousPhoto" type="button" aria-label="上一张图片">← 上一张</button>
+      <button id="closePhoto" type="button">关闭 ×</button>
+      <button id="nextPhoto" type="button" aria-label="下一张图片">下一张 →</button>
+    </div>
+    <img id="fullPhoto" alt="" />
+    <p class="lightbox-caption" id="photoCaption"></p>
+  </dialog>
+
+  <style is:global>
+    /* 全部带 .album-page 前缀：内容由脚本创建，必须 gobal，否则 Astro 的样式作用域打不到 */
+    .album-page { max-width: 960px; }
+    .album-page .gate-actions { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .album-page .gate-text { color: var(--muted); max-width: 620px; }
+
+    .album-page .composer { margin-bottom: 26px; }
+    .album-page .composer h2 { margin-bottom: 18px; }
+    .album-page .field { display: block; margin-bottom: 16px; }
+    .album-page .field-label { display: block; font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--primary); margin-bottom: 7px; }
+    .album-page input[type="text"], .album-page textarea {
+      width: 100%; background: var(--page); color: var(--ink); border: 1px solid var(--line);
+      border-radius: 14px; padding: 12px 14px; resize: vertical;
+    }
+    .album-page textarea { min-height: 120px; line-height: 1.7; }
+    .album-page .drop {
+      display: flex; gap: 14px; align-items: center; justify-content: center; text-align: center;
+      border: 1.5px dashed var(--line); border-radius: 16px; padding: 22px; cursor: pointer;
+      color: var(--muted); background: var(--page); transition: border-color .15s, color .15s;
+    }
+    .album-page .drop:hover, .album-page .drop.is-over { border-color: var(--primary); color: var(--primary); }
+    .album-page .drop-icon { font-size: 26px; line-height: 1; }
+    .album-page .drop-text small { color: var(--muted); font-size: 12px; }
+    .album-page .preview { display: flex; flex-wrap: wrap; gap: 10px; list-style: none; margin: 12px 0 0; padding: 0; }
+    .album-page .preview li { position: relative; width: 96px; height: 96px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+    .album-page .preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .album-page .preview button {
+      position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border: 0; border-radius: 50%;
+      background: #07101ccd; color: #fff; font-size: 14px; line-height: 1; padding: 0;
+    }
+    .album-page .form-error { color: #d1435b; min-height: 1.2em; margin: 6px 0; font-size: 14px; }
+    .album-page .composer-actions { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .album-page .composer-hint { color: var(--muted); font-size: 13px; }
+
+    .album-page .album-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 4px 2px 14px; color: var(--muted); font-size: 14px; }
+    .album-page .ghost {
+      border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+      border-radius: 20px; padding: 8px 16px; min-height: 40px;
+    }
+    .album-page .ghost:hover { border-color: var(--primary); color: var(--primary); }
+    .album-page .post-feed { display: grid; gap: 22px; }
+    .album-page .post-card { background: var(--surface); border: 1px solid var(--line); border-radius: 26px; box-shadow: var(--shadow); overflow: hidden; }
+    .album-page .post-head { display: flex; align-items: center; gap: 12px; padding: 20px 24px 0; }
+    .album-page .post-avatar {
+      width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center;
+      background: var(--soft); color: var(--primary); font-weight: 800; text-transform: uppercase;
+    }
+    .album-page .post-who { min-width: 0; }
+    .album-page .post-author { display: block; font-weight: 700; line-height: 1.3; }
+    .album-page .post-time { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .album-page .post-tools { margin-left: auto; display: flex; gap: 8px; }
+    .album-page .post-tool {
+      border: 1px solid var(--line); background: transparent; color: var(--muted);
+      border-radius: 18px; padding: 6px 12px; font-size: 13px; min-height: 34px; white-space: nowrap;
+    }
+    .album-page .post-tool:hover { border-color: var(--primary); color: var(--primary); }
+    .album-page .post-title { margin: 14px 24px 0; font-size: 24px; line-height: 1.35; }
+    .album-page .post-body { margin: 10px 24px 0; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+    .album-page .post-body.is-empty { color: var(--muted); font-style: italic; }
+    .album-page .post-photos { display: grid; gap: 6px; padding: 16px 24px 0; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .album-page .post-photos[data-count="1"] { grid-template-columns: 1fr; }
+    .album-page .post-photos button { padding: 0; border: 0; background: var(--soft); border-radius: 14px; overflow: hidden; display: block; }
+    .album-page .post-photos img { width: 100%; height: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+    .album-page .post-photos[data-count="1"] img { aspect-ratio: auto; width: 100%; height: auto; max-height: none; object-fit: contain; background: var(--soft); }
+    .album-page .post-foot { padding: 14px 24px 22px; color: var(--muted); font-size: 13px; }
+    .album-page .post-edit { padding: 6px 24px 22px; }
+    .album-page .post-edit textarea { min-height: 90px; }
+    .album-page .post-edit .edit-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .album-page .post-edit .edit-actions .action { padding: 9px 18px; border-radius: 20px; }
+    .album-page .album-empty { text-align: center; padding: 55px 25px; margin-top: 6px; }
+    .album-page .album-empty p { color: var(--muted); }
+    .album-page .album-more { display: flex; justify-content: center; margin: 22px 0 10px; }
+    .album-page .album-loading { text-align: center; color: var(--muted); padding: 30px; }
+
+    @media (max-width: 580px) {
+      .album-page .post-head { padding: 16px 18px 0; flex-wrap: wrap; row-gap: 6px; }
+      .album-page .post-tools { margin-left: 0; width: 100%; justify-content: flex-end; }
+      .album-page .post-title { margin: 12px 18px 0; font-size: 21px; }
+      .album-page .post-body { margin: 8px 18px 0; }
+      .album-page .post-photos { padding: 14px 18px 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .album-page .post-photos[data-count="1"] { grid-template-columns: 1fr; }
+      .album-page .post-foot { padding: 12px 18px 18px; }
+      .album-page .post-edit { padding: 6px 18px 18px; }
+      .album-page .post-tool { padding: 6px 10px; }
+    }
+  </style>
+
+  <script is:inline>
+    (() => {
+      'use strict';
+
+      const TOKEN_KEY = 'mcmap_token';
+      const PAGE_SIZE = 12;
+      const MAX_BODY = 5000;
+      const MAX_PHOTOS = 12;
+      const MAX_BYTES = 10 * 1024 * 1024;
+      const TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+      const el = (id) => document.getElementById(id);
+      const state = { me: null, items: [], total: 0, offset: 0, photos: [], busy: false, pending: [], editing: null };
+
+      const feed = el('feed');
+      const preview = el('photoPreview');
+      const formError = el('formError');
+
+      function readToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
+      function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch { /* 忽略 */ } }
+      function show(node, on) { if (node) node.hidden = !on; }
+
+      class ApiError extends Error {
+        constructor(message, status) { super(message); this.name = 'ApiError'; this.status = status; }
+      }
+
+      function fallbackMessage(status) {
+        if (status === 401) return '登录状态已失效，请重新登录';
+        if (status === 403) return '没有权限操作这篇记录';
+        if (status === 404) return '记录不存在或已被删除';
+        if (status === 409) return '操作冲突，请刷新后重试';
+        if (status === 413) return '图片超过大小限制';
+        if (status === 415) return '图片格式不受支持';
+        if (status === 0) return '网络错误，请检查连接后重试';
+        return '请求失败（' + status + '）';
+      }
+
+      async function request(path, options) {
+        const opts = options || {};
+        const headers = new Headers(opts.headers || {});
+        const token = readToken();
+        if (token) headers.set('Authorization', 'Bearer ' + token);
+        let response;
+        try {
+          response = await fetch(path, Object.assign({}, opts, { headers }));
+        } catch {
+          throw new ApiError(fallbackMessage(0), 0);
+        }
+        let data = null;
+        if ((response.headers.get('content-type') || '').indexOf('application/json') !== -1) {
+          try { data = await response.json(); } catch { data = null; }
+        }
+        if (!response.ok) {
+          if (response.status === 401) clearToken();
+          const serverMessage = data && typeof data.error === 'string' && data.error.trim();
+          throw new ApiError(serverMessage || fallbackMessage(response.status), response.status);
+        }
+        return data;
+      }
+
+      // "2026-10-31 03:12:44"（UTC）→ 本地时间
+      function formatTime(raw) {
+        if (!raw) return '';
+        const iso = String(raw).replace(' ', 'T');
+        const date = new Date(/Z$|[+-]\d\d:\d\d$/.test(iso) ? iso : iso + 'Z');
+        if (Number.isNaN(date.getTime())) return String(raw);
+        const pad = (n) => String(n).padStart(2, '0');
+        return date.getFullYear() + ' 年 ' + (date.getMonth() + 1) + ' 月 ' + date.getDate() + ' 日 ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+      }
+
+      function formatSize(bytes) {
+        if (bytes >= 1024 * 1024) {
+          const mb = bytes / (1024 * 1024);
+          return (mb >= 10 ? Math.round(mb) : mb.toFixed(1)) + ' MB';
+        }
+        return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+      }
+
+      function canManage(post) {
+        if (!state.me) return false;
+        if (['admin', 'owner'].includes(state.me.role)) return true;
+        return post.author === state.me.username;
+      }
+
+      // ---------- 渲染 ----------
+      function photoButton(photo, index) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('aria-label', '放大查看：' + (photo.name || '图片'));
+        const img = document.createElement('img');
+        img.src = photo.url;
+        img.alt = photo.name || '历程图片';
+        img.loading = 'lazy';
+        if (photo.width && photo.height) img.width = photo.width, img.height = photo.height;
+        button.appendChild(img);
+        button.addEventListener('click', () => openLightbox(index));
+        return button;
+      }
+
+      function renderCard(post) {
+        const card = document.createElement('article');
+        card.className = 'post-card';
+        card.dataset.id = String(post.id);
+
+        const head = document.createElement('header');
+        head.className = 'post-head';
+        const avatar = document.createElement('span');
+        avatar.className = 'post-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        avatar.textContent = (post.author || '?').slice(0, 1);
+        const who = document.createElement('div');
+        who.className = 'post-who';
+        const author = document.createElement('strong');
+        author.className = 'post-author';
+        author.textContent = post.author;
+        const time = document.createElement('time');
+        time.className = 'post-time';
+        time.dateTime = post.created_at || '';
+        time.textContent = formatTime(post.created_at) + (post.updated_at ? ' · 已编辑' : '');
+        who.append(author, time);
+        head.append(avatar, who);
+
+        if (canManage(post)) {
+          const tools = document.createElement('div');
+          tools.className = 'post-tools';
+          const edit = document.createElement('button');
+          edit.type = 'button'; edit.className = 'post-tool'; edit.textContent = '编辑';
+          edit.addEventListener('click', () => toggleEdit(post.id, true));
+          const del = document.createElement('button');
+          del.type = 'button'; del.className = 'post-tool'; del.textContent = '删除';
+          del.addEventListener('click', () => removePost(post));
+          tools.append(edit, del);
+          head.append(tools);
+        }
+
+        const title = document.createElement('h2');
+        title.className = 'post-title';
+        title.textContent = post.title;
+
+        const body = document.createElement('div');
+        body.className = 'post-body';
+        body.textContent = post.body || '';
+        if (!post.body) { body.classList.add('is-empty'); body.textContent = '（这篇只发了图片）'; }
+
+        card.append(head, title, body);
+
+        if (post.images && post.images.length) {
+          const grid = document.createElement('div');
+          grid.className = 'post-photos';
+          grid.dataset.count = String(Math.min(post.images.length, 3));
+          const start = state.photos.length;
+          post.images.forEach((photo, i) => {
+            state.photos.push({ photo, post });
+            grid.appendChild(photoButton(photo, start + i));
+          });
+          card.append(grid);
+        }
+
+        const foot = document.createElement('div');
+        foot.className = 'post-foot';
+        foot.textContent = post.images && post.images.length ? post.images.length + ' 张图片' : '没有图片';
+        card.append(foot);
+
+        card.append(renderEditForm(post));
+        return card;
+      }
+
+      function renderEditForm(post) {
+        const box = document.createElement('div');
+        box.className = 'post-edit';
+        box.hidden = true;
+        box.dataset.editFor = String(post.id);
+
+        const title = document.createElement('input');
+        title.type = 'text'; title.maxLength = 80; title.value = post.title;
+        title.className = 'edit-title';
+        title.setAttribute('aria-label', '标题');
+
+        const body = document.createElement('textarea');
+        body.rows = 4; body.maxLength = MAX_BODY; body.value = post.body || '';
+        body.setAttribute('aria-label', '正文');
+
+        const photos = document.createElement('div');
+        photos.className = 'edit-photos';
+        (post.images || []).forEach((photo) => {
+          const row = document.createElement('p');
+          row.className = 'edit-photo';
+          const name = document.createElement('span');
+          name.textContent = photo.name || '图片';
+          const del = document.createElement('button');
+          del.type = 'button'; del.className = 'post-tool'; del.textContent = '删除这张';
+          del.addEventListener('click', () => removePhoto(post, photo));
+          row.append(name, del);
+          photos.append(row);
+        });
+
+        const add = document.createElement('label');
+        add.className = 'drop edit-drop';
+        const addInput = document.createElement('input');
+        addInput.type = 'file'; addInput.accept = TYPES.join(','); addInput.multiple = true; addInput.hidden = true;
+        addInput.addEventListener('change', () => addPhotos(post, addInput));
+        const addText = document.createElement('span');
+        addText.className = 'drop-text';
+        addText.textContent = '＋ 继续添加图片';
+        add.append(addInput, addText);
+
+        const actions = document.createElement('div');
+        actions.className = 'edit-actions';
+        const save = document.createElement('button');
+        save.type = 'button'; save.className = 'action'; save.textContent = '保存修改';
+        save.addEventListener('click', () => saveEdit(post, { title, body }));
+        const cancel = document.createElement('button');
+        cancel.type = 'button'; cancel.className = 'ghost'; cancel.textContent = '取消';
+        cancel.addEventListener('click', () => toggleEdit(post.id, false));
+        const error = document.createElement('p');
+        error.className = 'form-error';
+        actions.append(save, cancel);
+
+        box.append(title, body, photos, add, actions, error);
+        return box;
+      }
+
+      function toggleEdit(id, on) {
+        const card = feed.querySelector('[data-id="' + id + '"]');
+        if (!card) return;
+        const box = card.querySelector('[data-edit-for="' + id + '"]');
+        if (box) box.hidden = !on;
+      }
+
+      // ---------- 读取 ----------
+      async function load(reset) {
+        if (state.busy) return;
+        state.busy = true;
+        if (reset) {
+          feed.innerHTML = '<p class="album-loading">正在读取…</p>';
+          state.photos = [];
+          show(el('albumEmpty'), false);
+          show(el('moreBtn'), false);
+        }
+        try {
+          const offset = reset ? 0 : state.offset;
+          const data = await request('/api/posts?limit=' + PAGE_SIZE + '&offset=' + offset);
+          const fresh = data.items || [];
+          state.total = data.total || 0;
+          state.items = reset ? fresh : state.items.concat(fresh);
+          state.offset = offset + fresh.length;
+          if (reset) feed.textContent = '';
+          fresh.forEach((post) => feed.appendChild(renderCard(post)));
+          show(el('albumEmpty'), state.total === 0);
+          show(el('moreBtn'), state.items.length < state.total);
+          el('albumCount').textContent = state.total ? '共 ' + state.total + ' 篇记录 · 最新在前' : '还没有记录';
+        } catch (error) {
+          if (!state.items.length) {
+            feed.innerHTML = '';
+            const box = document.createElement('div');
+            box.className = 'card album-empty';
+            const title = document.createElement('h2');
+            title.textContent = '读取失败';
+            const p = document.createElement('p');
+            p.textContent = error.message;
+            const retry = document.createElement('button');
+            retry.type = 'button'; retry.className = 'ghost'; retry.textContent = '重试';
+            retry.addEventListener('click', () => load(true));
+            box.append(title, p, retry);
+            feed.appendChild(box);
+          }
+          el('albumCount').textContent = '读取失败：' + error.message;
+        } finally {
+          state.busy = false;
+        }
+      }
+
+      // ---------- 灯箱 ----------
+      let lightboxIndex = 0;
+      const dialog = el('photoLightbox');
+      function openLightbox(index) {
+        if (!state.photos.length) return;
+        lightboxIndex = (index + state.photos.length) % state.photos.length;
+        const entry = state.photos[lightboxIndex];
+        const img = el('fullPhoto');
+        img.src = entry.photo.url;
+        img.alt = entry.photo.name || '历程图片';
+        el('photoCaption').textContent = entry.post.title + ' · ' + entry.post.author + ' · ' + formatTime(entry.post.created_at);
+        if (typeof dialog.showModal === 'function') dialog.showModal();
+      }
+      function stepLightbox(delta) {
+        if (!state.photos.length) return;
+        lightboxIndex = (lightboxIndex + delta + state.photos.length) % state.photos.length;
+        openLightbox(lightboxIndex);
+      }
+      el('closePhoto').addEventListener('click', () => dialog.close());
+      el('previousPhoto').addEventListener('click', () => stepLightbox(-1));
+      el('nextPhoto').addEventListener('click', () => stepLightbox(1));
+      dialog.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowLeft') stepLightbox(-1);
+        if (event.key === 'ArrowRight') stepLightbox(1);
+      });
+      dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+
+      // ---------- 发布 ----------
+      function pickFiles(fileList) {
+        const incoming = Array.from(fileList || []);
+        const errors = [];
+        for (const file of incoming) {
+          if (!TYPES.includes(file.type)) { errors.push(file.name + '：只支持 PNG / JPEG / WebP'); continue; }
+          if (file.size > MAX_BYTES) { errors.push(file.name + '：超过 10 MB'); continue; }
+          state.pending.push(file);
+        }
+        if (state.pending.length > MAX_PHOTOS) {
+          errors.push('每篇最多 ' + MAX_PHOTOS + ' 张图片，多余的已忽略');
+          state.pending = state.pending.slice(0, MAX_PHOTOS);
+        }
+        formError.textContent = errors.join('；');
+        renderPreview();
+      }
+
+      function renderPreview() {
+        preview.textContent = '';
+        state.pending.forEach((file, index) => {
+          const li = document.createElement('li');
+          const img = document.createElement('img');
+          img.alt = file.name;
+          const url = URL.createObjectURL(file);
+          img.src = url;
+          img.onload = () => URL.revokeObjectURL(url);
+          const del = document.createElement('button');
+          del.type = 'button'; del.textContent = '×';
+          del.setAttribute('aria-label', '移除 ' + file.name);
+          del.addEventListener('click', () => { state.pending.splice(index, 1); renderPreview(); });
+          li.append(img, del);
+          preview.appendChild(li);
+        });
+      }
+
+      const drop = el('photoDrop');
+      el('postFiles').addEventListener('change', (event) => { pickFiles(event.target.files); event.target.value = ''; });
+      ['dragenter', 'dragover'].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.add('is-over'); }));
+      ['dragleave', 'drop'].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.remove('is-over'); }));
+      drop.addEventListener('drop', (event) => { if (event.dataTransfer && event.dataTransfer.files) pickFiles(event.dataTransfer.files); });
+
+      async function uploadPhotos(post, files, onProgress) {
+        let done = 0;
+        for (const file of files) {
+          if (onProgress) onProgress(done, files.length);
+          await request('/api/posts/' + post.id + '/photos?name=' + encodeURIComponent(file.name), {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type },
+            body: file,
+          });
+          done += 1;
+        }
+      }
+
+      el('postForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (state.busy) return;
+        const title = el('postTitle').value.trim();
+        const body = el('postBody').value;
+        if (!title) { formError.textContent = '标题不能为空'; return; }
+        if (body.length > MAX_BODY) { formError.textContent = '正文不能超过 ' + MAX_BODY + ' 个字'; return; }
+        state.busy = true;
+        formError.textContent = '';
+        const button = el('submitBtn');
+        const hint = el('composerHint');
+        button.disabled = true;
+        try {
+          const post = await request('/api/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, body }),
+          });
+          if (state.pending.length) {
+            button.textContent = '上传图片…';
+            await uploadPhotos(post, state.pending, (done, total) => { hint.textContent = '正在上传图片 ' + (done + 1) + ' / ' + total; });
+          }
+          state.pending = [];
+          renderPreview();
+          el('postTitle').value = '';
+          el('postBody').value = '';
+          hint.textContent = '发布成功，正在刷新…';
+          await load(true);
+          hint.textContent = '发布成功。';
+        } catch (error) {
+          formError.textContent = error.message;
+        } finally {
+          state.busy = false;
+          button.disabled = false;
+          button.textContent = '发布';
+        }
+      });
+
+      // ---------- 编辑 / 删除 ----------
+      async function saveEdit(post, fields) {
+        const title = fields.title.value.trim();
+        const body = fields.body.value;
+        if (!title) { formError.textContent = ''; alert('标题不能为空'); return; }
+        try {
+          await request('/api/posts/' + post.id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, body }),
+          });
+          await load(true);
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      async function removePost(post) {
+        if (!confirm('删除《' + post.title + '》？图片也会一起删除，无法恢复。')) return;
+        try {
+          await request('/api/posts/' + post.id, { method: 'DELETE' });
+          await load(true);
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      async function removePhoto(post, photo) {
+        if (!confirm('删除这张图片？')) return;
+        try {
+          await request('/api/posts/' + post.id + '/photos?key=' + encodeURIComponent(photo.key), { method: 'DELETE' });
+          await load(true);
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      async function addPhotos(post, input) {
+        const files = Array.from(input.files || []);
+        input.value = '';
+        if (!files.length) return;
+        try {
+          await uploadPhotos(post, files);
+          await load(true);
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      // ---------- 启动 ----------
+      el('moreBtn').addEventListener('click', () => load(false));
+      el('reloadBtn').addEventListener('click', () => load(true));
+
+      (async () => {
+        const token = readToken();
+        if (token) {
+          try {
+            state.me = await request('/api/me');
+            show(el('composer'), true);
+            show(el('albumGate'), false);
+          } catch {
+            state.me = null;
+          }
+        }
+        if (!state.me) {
+          show(el('composer'), false);
+          show(el('albumGate'), true);
+          if (token) el('gateText').textContent = '登录状态已失效：可以继续浏览，发表图文前请重新登录。';
+        }
+        await load(true);
+      })();
+    })();
   </script>
 </BaseLayout>

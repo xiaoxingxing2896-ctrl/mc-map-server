@@ -38,6 +38,28 @@ function initDatabase() {
           is_public INTEGER DEFAULT 1
       )`);
 
+      // 历程记录（博客式相册）：任意已登录玩家可写图文，图片落 config.photosDir
+      db.run(`CREATE TABLE IF NOT EXISTS posts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL DEFAULT '',
+          author TEXT NOT NULL,
+          author_id INTEGER,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME
+      )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS post_photos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          post_id INTEGER NOT NULL,
+          key TEXT NOT NULL UNIQUE,
+          name TEXT,
+          width INTEGER DEFAULT 0,
+          height INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+      db.run('CREATE INDEX IF NOT EXISTS idx_post_photos_post ON post_photos(post_id)');
+
       db.get("SELECT * FROM users WHERE role = 'owner'", (err, owner) => {
         if (err) return reject(err);
         if (owner) return resolve();

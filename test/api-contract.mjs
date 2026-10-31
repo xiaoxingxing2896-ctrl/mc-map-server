@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { tokens } from './helpers.mjs';
+import { png } from './png-fixture.mjs';
 
 // Shared behavioral contracts; each case receives a new database and rate limit state.
 export function apiContract(test, fixture) {
@@ -122,6 +123,105 @@ export function apiContract(test, fixture) {
     },
     async 'missing markers return 404 for read, edit and delete'({ req }) {
       for (const method of ['GET', 'PUT', 'DELETE']) assert.equal((await req(method, '/api/markers/999', method === 'PUT' ? {} : undefined, tokens.alice)).status, 404);
+    },
+    async 'posts: public list starts empty and is readable anonymously'({ req }) {
+      const r = await req('GET', '/api/posts');
+      assert.equal(r.status, 200);
+      assert.equal(r.data.total, 0);
+      assert.deepEqual(r.data.items, []);
+      assert.equal(r.headers.get('cache-control'), 'no-store');
+    },
+    async 'posts: writing requires a login'({ req, db }) {
+      assert.equal((await req('POST', '/api/posts', { title: '匿名' })).status, 401);
+      assert.equal((await req('PUT', '/api/posts/1', { title: '匿名' })).status, 401);
+      assert.equal((await req('DELETE', '/api/posts/1')).status, 401);
+      assert.equal((await req('PUT', '/api/posts/1/photos?name=a.png', png(), undefined, { 'Content-Type': 'image/png' })).status, 401);
+      assert.equal((await db.get('SELECT COUNT(*) AS c FROM posts')).c, 0);
+    },
+    async 'posts: title and body are validated before insert'({ req, db }) {
+      for (const body of [{ title: '' }, { title: '   ' }, { title: null }, { title: 4 }, { title: 'a'.repeat(81) }, { title: 'ok', body: 'x'.repeat(5001) }]) {
+        assert.equal((await req('POST', '/api/posts', body, tokens.alice)).status, 400, JSON.stringify(body).slice(0, 40));
+      }
+      assert.equal((await db.get('SELECT COUNT(*) AS c FROM posts')).c, 0);
+    },
+    async 'posts: any player can publish, everyone can read'({ req }) {
+      const created = await req('POST', '/api/posts', { title: '  第一座钟楼  ', body: '第一行\n第二行' }, tokens.alice);
+      assert.equal(created.status, 201);
+      assert.equal(created.data.title, '第一座钟楼');
+      assert.equal(created.data.author, 'alice');
+      assert.equal(created.data.body, '第一行\n第二行');
+      assert.deepEqual(created.data.images, []);
+      const list = await req('GET', '/api/posts');
+      assert.equal(list.status, 200);
+      assert.equal(list.data.total, 1);
+      assert.equal(list.data.items[0].id, created.data.id);
+      const detail = await req('GET', '/api/posts/' + created.data.id);
+      assert.equal(detail.status, 200);
+      assert.equal(detail.data.title, '第一座钟楼');
+      assert.equal((await req('GET', '/api/posts/999')).status, 404);
+    },
+    async 'posts: newest first and paginated'({ req }) {
+      for (const title of ['一', '二', '三']) await req('POST', '/api/posts', { title }, tokens.alice);
+      const first = await req('GET', '/api/posts?limit=2');
+      assert.equal(first.data.total, 3);
+      assert.deepEqual(first.data.items.map(p => p.title), ['三', '二']);
+      const second = await req('GET', '/api/posts?limit=2&offset=2');
+      assert.deepEqual(second.data.items.map(p => p.title), ['一']);
+    },
+    async 'posts: only the author or a privileged role can edit and delete'({ req, db }) {
+      const created = await req('POST', '/api/posts', { title: '原稿' }, tokens.alice);
+      const url = '/api/posts/' + created.data.id;
+      assert.equal((await req('PUT', url, { title: '被别人改了' }, tokens.bob)).status, 403);
+      assert.equal((await req('DELETE', url, undefined, tokens.bob)).status, 403);
+      assert.equal((await req('GET', url)).data.title, '原稿');
+      const edited = await req('PUT', url, { title: ' 作者改的 ', body: '补一句' }, tokens.alice);
+      assert.equal(edited.status, 200);
+      assert.equal(edited.data.title, '作者改的');
+      assert.ok(edited.data.updated_at, '编辑后应记录 updated_at');
+      assert.equal((await req('PUT', url, { title: '' }, tokens.alice)).status, 400);
+      assert.equal((await req('PUT', url, { title: '管理员改的' }, tokens.admin)).status, 200);
+      assert.equal((await req('DELETE', url, undefined, tokens.admin)).status, 200);
+      assert.equal((await req('GET', url)).status, 404);
+      assert.equal((await db.get('SELECT COUNT(*) AS c FROM posts')).c, 0);
+    },
+    async 'posts: photos upload, serve and delete with the record'({ req, db }) {
+      const created = await req('POST', '/api/posts', { title: '带图的一篇' }, tokens.alice);
+      const base = '/api/posts/' + created.data.id;
+      const bytes = png();
+      // 非作者、错误类型、非图片内容都必须被挡住
+      assert.equal((await req('PUT', base + '/photos?name=x.png', bytes, tokens.bob, { 'Content-Type': 'image/png' })).status, 403);
+      assert.equal((await req('PUT', base + '/photos?name=x.txt', bytes, tokens.alice, { 'Content-Type': 'text/plain' })).status, 415);
+      assert.equal((await req('PUT', base + '/photos?name=x.png', Buffer.from('not an image at all'), tokens.alice, { 'Content-Type': 'image/png' })).status, 400);
+      assert.equal((await db.get('SELECT COUNT(*) AS c FROM post_photos')).c, 0);
+
+      const up = await req('PUT', base + '/photos?name=' + encodeURIComponent('钟楼.png'), bytes, tokens.alice, { 'Content-Type': 'image/png' });
+      assert.equal(up.status, 201);
+      assert.equal(up.data.width, 1024);
+      assert.equal(up.data.height, 1024);
+      assert.match(up.data.key, new RegExp('^' + created.data.id + '/[a-z0-9]+\\.png$'));
+      assert.equal(up.data.url, '/photos/' + up.data.key);
+
+      const served = await req('GET', up.data.url);
+      assert.equal(served.status, 200);
+      assert.match(served.headers.get('content-type'), /image\/png/);
+      assert.match(served.headers.get('cache-control'), /max-age=604800/);
+      assert.equal((await req('GET', '/photos/1/../../etc/passwd')).status, 404);
+      assert.equal((await req('GET', '/photos/' + created.data.id + '/missing.png')).status, 404);
+
+      const detail = await req('GET', base);
+      assert.equal(detail.data.images.length, 1);
+      assert.equal(detail.data.images[0].name, '钟楼.png');
+
+      assert.equal((await req('DELETE', base + '/photos?key=' + encodeURIComponent(up.data.key), undefined, tokens.bob)).status, 403);
+      assert.equal((await req('DELETE', base + '/photos?key=' + encodeURIComponent(up.data.key), undefined, tokens.alice)).status, 200);
+      assert.equal((await req('GET', up.data.url)).status, 404);
+
+      // 删除记录时，图片对象一并清理
+      const again = await req('PUT', base + '/photos?name=b.png', bytes, tokens.alice, { 'Content-Type': 'image/png' });
+      assert.equal(again.status, 201);
+      assert.equal((await req('DELETE', base, undefined, tokens.alice)).status, 200);
+      assert.equal((await req('GET', again.data.url)).status, 404);
+      assert.equal((await db.get('SELECT COUNT(*) AS c FROM post_photos')).c, 0);
     },
   };
   for (const [name, run] of Object.entries(cases)) test(name, async t => run(await fixture(t)));

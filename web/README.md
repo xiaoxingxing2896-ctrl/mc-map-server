@@ -7,7 +7,7 @@
 | --- | --- |
 | `/` | 地图首页：直接嵌入 `../public/index.html`（上游地图应用源码，保持零改动），套上站点外壳与 `map-theme.css` 圆角玻璃风格 |
 | `/about/` | 服务器介绍（RyuChan 风格横幅 + 卡片，内容来自 `src/data/site.json`） |
-| `/history/` | 历程记录（时间轴；图片放 `public/history/`，命名 `YYYY-MM-DD_标题_作者1,作者2.webp`） |
+| `/history/` | 历程记录：**博客式相册**，任意登录玩家可发图文（`/api/posts`，图片走 R2 `photos/`），详见下文 |
 | `/thanks/` | 特别鸣谢（名单在 `site.json` 的 `thanks`，开源项目为固定三条） |
 | `/account/` | 账号入口：登录 / 注册 / 邮箱验证 / 忘记密码 合并为一个入口，与地图共用 `mcmap_token` 等存储键与全部 `/api/auth/*` 接口；登录成功默认返回地图 |
 | `/transit/` | 交通线路：下界交通示意图，数据驱动 SVG（`web/public/nether-map/`），可点站看详情、缩放平移；`?edit=1` 才显示编辑入口 |
@@ -42,6 +42,23 @@ wiki/reference/                  术语表 / 装备与附魔 / 变更日志 / �
 | 删除 | `DELETE /api/tiles?world=&name=` | 先删 `_uploads` 覆盖层，再删基础层；成功返回 `removed` |
 
 > 删除接口是新增的 Worker 路由，需要重新部署 Worker 才生效（只更新静态站不够）。
+
+## 历程记录（/history/，博客式相册）
+
+页面本身是静态壳，内容在浏览器里向 `/api/posts` 取，因此**发一篇不用重新构建站点**：
+
+| 操作 | 请求 | 权限 |
+|---|---|---|
+| 列表 | `GET /api/posts?limit=&offset=` | 公开 |
+| 发布 | `POST /api/posts` `{title, body}` | 任意登录玩家 |
+| 改 / 删 | `PUT` / `DELETE /api/posts/:id` | 作者本人、admin、owner |
+| 加图 | `PUT /api/posts/:id/photos?name=`（raw body，`image/png\|jpeg\|webp`） | 同上 |
+| 删图 | `DELETE /api/posts/:id/photos?key=` | 同上 |
+| 取图 | `GET /photos/<key>` | 公开，7 天缓存 |
+
+- 图片存 R2 `photos/<postId>/…`（Express 版存 `config.photosDir`，默认 `photos/`），**与 `/tiles/` 瓦片完全隔离**；
+- 服务端只认文件头：PNG / JPEG / WebP，单张 ≤ 10 MB，每篇最多 12 张，标题 ≤ 80 字、正文 ≤ 5000 字；
+- 页面上所有文字都用 `textContent` 写入，不拼接 HTML，正文按纯文本保留换行。
 
 ## 交通线路
 
@@ -96,7 +113,7 @@ npm run dev        # http://localhost:4321 ，/api 与 /tiles 自动代理到 12
 `src/data/site.json`：
 - `name` / `description` / `introduction`：站名与介绍
 - `address` / `version` / `joinUrl`：加入服务器信息（留空则页面显示"联系管理员"）
-- `history` / `thanks`：也可直接写在 JSON（`history` 项见 `src/data/history.ts` 的 `HistoryItem`）
+- `thanks`：致谢名单（历程记录已改为 `/api/posts` 动态内容，不再读 JSON）
 
 ## 构建与部署（Cloudflare）
 
@@ -156,6 +173,7 @@ Tunnel 方式暴露。API 域名仍由同一服务提供，无需转发层。
 - [x] 导航加入"账号"入口
 - [x] 并入原仓库：Worker Assets 改为承载 `web/dist`（`worker/wrangler.toml`），D1/R2/secrets 不动
 - [x] 站点结构扩到 8 个栏目（介绍 / 历程 / 交通 / 地图 / 上传 / Wiki / 致谢 / 账号）
-- [ ] 真机/浏览器全流程回归（导入后请在手机上实际走一遍注册→验证→登录→标注）
-- [ ] 填入真实历程图片与鸣谢名单（`public/history/` 与 `site.json`）
+- [x] 历程记录改为博客式相册：任意登录玩家发图文，图片存 R2 `photos/`
+- [ ] 真机/浏览器全流程回归（导入后请在手机上实际走一遍注册→验证→登录→标注→发历程）
+- [ ] 填入真实鸣谢名单（`site.json`）
 - [ ] 线上域名配置与正式部署（`npm run site:deploy`）

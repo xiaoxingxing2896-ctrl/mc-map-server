@@ -51,6 +51,8 @@ const config = {
   // 数据与静态资源路径：Docker 部署时通过挂载卷覆盖这两项即可实现持久化。
   dbPath: path.resolve(getEnv('DB_PATH', path.join(ROOT, 'mcmap.db'))),
   tilesDir: path.resolve(getEnv('TILES_DIR', path.join(ROOT, 'tiles'))),
+  // 历程记录（博客式相册）的图片目录，与瓦片分开存放，同样可用环境变量覆盖。
+  photosDir: path.resolve(getEnv('PHOTOS_DIR', path.join(ROOT, 'photos'))),
   publicDir: path.join(ROOT, 'public'),
 
   // 全新部署时初始 Owner 的密码；缺省则自动生成随机密码并打印在日志中。

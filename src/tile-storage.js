@@ -51,5 +51,21 @@ module.exports = function createTileStorage(root) {
         await fs.rm(temp, { force: true }); await lock.close(); await fs.unlink(target + '.lock');
       }
     },
+    // ---------- 历程图片：键形如 <postId>/<随机>.<ext>，失败即抛错 ----------
+    async putPhoto(key, bytes) {
+      const target = resolve(key);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(target, bytes);
+      return { etag: etag(bytes) };
+    },
+    async getPhoto(key) {
+      try {
+        return { buf: await fs.readFile(resolve(key)), type: key.endsWith('.png') ? 'image/png' : key.endsWith('.webp') ? 'image/webp' : 'image/jpeg' };
+      } catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+    },
+    async deletePhoto(key) {
+      try { await fs.unlink(resolve(key)); return true; }
+      catch (e) { if (e.code === 'ENOENT') return false; throw e; }
+    },
   };
 };

@@ -17,24 +17,30 @@ export async function workerFixture(t, overrides = {}) {
   const raw = new sqlite3.Database(':memory:');
   t.after(() => new Promise((resolve, reject) => raw.close(e => e ? reject(e) : resolve())));
   const db = createDbFromSqlite(raw);
+  const photos = new Map();
   const bucket = {
     async listTiles(prefix = '') { return [...tileFiles, 'nether/x1_z2.png', 'end/x3_z4.png'].filter(k => k.startsWith(prefix)).map(key => ({ key })); },
     async getTile(key) { return tileFiles.includes(key) ? { buf: new Uint8Array([137, 80, 78, 71]), type: 'image/png' } : null; },
+    // 历程图片：内存版对象存储（键形如 '<postId>/<随机>.<ext>'）
+    async putPhoto(key, bytes, type) { photos.set(key, { buf: Buffer.from(bytes), type }); return { key }; },
+    async getPhoto(key) { return photos.get(key) || null; },
+    async deletePhoto(key) { photos.delete(key); },
   };
   const app = createApp({ db, bucket, jwtSecret: secret, ...overrides });
   let seq = 0;
   async function req(method, path, body, token, extra = {}) {
+    const raw = body instanceof Uint8Array || Buffer.isBuffer(body);
     const response = await app(new Request('https://test.invalid' + path, {
       method,
       headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': `test-${++seq}`, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : (raw ? body : JSON.stringify(body)),
     }));
     const text = await response.text();
     let data; try { data = JSON.parse(text); } catch { data = text; }
     return { status: response.status, headers: response.headers, data };
   }
   await req('GET', '/api/health');
-  return { req, db, app, bucket };
+  return { req, db, app, bucket, photos };
 }
 
 export async function seed(db) {
