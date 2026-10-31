@@ -5,7 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   <div class="page-heading">
     <span class="section-tag">NETHER TRANSIT</span>
     <h1>地狱交通</h1>
-    <p>一辈子存档服务器的下界交通示意图。点站名看详情，滚轮或双指缩放，拖动平移，双击复位。</p>
+    <p>MareCraft 服务器的下界交通示意图。点站名看详情，滚轮或双指缩放，拖动平移，双击复位。</p>
   </div>
 
   <!-- 组件与数据必须排在 <nether-map> 之前：自定义元素升级时会同步读取 window.NETHER_MAP_DATA -->
@@ -45,7 +45,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <p class="lines-head"><span>共 <span id="lineCount">9</span> 条线路</span><span>悬停或点选站点，会高亮它所属的线路</span></p>
           <ul class="line-list" id="lineList"></ul>
         </div>
-        <p>原图《一辈子存档服务器地狱交通示意图》，<strong>图片绘制 Image Creator: @虹翼整理 / @SparkleRhythm</strong>。</p>
+        <p>原图《MareCraft 服务器地狱交通示意图》，<strong>图片绘制 Image Creator: @虹翼整理 / @SparkleRhythm</strong>。</p>
         <p>本站把线路与站点整理成数据，再由脚本在浏览器里绘制成 SVG：缩放不失真，点选、详情与图例始终一致。</p>
         <p class="note">线路数据在 <code>web/public/nether-map/nether-map-data.js</code>，改数据即改图。</p>
       </div>

@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "一辈子存档 · MC 服务器网站：地图首页 + 服务器介绍 + 历程记录 + 特别鸣谢 + 账号入口（基于 mc-map-server 与 RyuChan 模板整合）",
+  "description": "MareCraft · MC 服务器网站：地图首页 + 服务器介绍 + 历程记录 + 特别鸣谢 + 账号入口（基于 mc-map-server 与 RyuChan 模板整合）",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

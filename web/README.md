@@ -1,4 +1,4 @@
-# web —— 一辈子存档 · MC 服务器网站（Astro）
+# web —— MareCraft · MC 服务器网站（Astro）
 
 把 [mc-map-server](https://github.com/xiaoxingxing2896-ctrl/mc-map-server) 的地图应用与
 [RyuChan](https://github.com/kobaridev/RyuChan) 设计语言整合为一个静态站：

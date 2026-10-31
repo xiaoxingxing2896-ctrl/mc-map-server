@@ -1,7 +1,7 @@
 /* 自动生成：window.NETHER_MAP_DATA = 同目录 nether-map-data.json 的内容 */
 window.NETHER_MAP_DATA = {
   "meta": {
-    "title": "一辈子存档服务器地狱交通示意图",
+    "title": "MareCraft 服务器地狱交通示意图",
     "subtitle": "WorldExternal Server Nether Express Map",
     "viewBox": [64, 278, 952, 538],
     "raster": [0, 0, 1122, 1080],
